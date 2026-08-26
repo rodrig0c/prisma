@@ -3,102 +3,108 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { 
-  BookOpen, Sparkles, BarChart3, LogOut, CheckCircle2, 
-  Clock, MessageSquarePlus, ChevronRight, UserPlus, KeyRound, 
-  Users, AlertTriangle, Lightbulb
+  Star, FileText, X, Check, ArrowLeft, 
+  LogOut, ChevronRight, UserCheck
 } from 'lucide-react';
 
-export default function MultitenantApp() {
+// Interfaces
+interface ScheduleSlot {
+  id: string;
+  order: string;
+  time: string;
+  subject: string;
+  iconType: 'math' | 'portugues' | 'pe' | 'snack' | 'science' | 'art';
+}
+
+interface DailyLog {
+  id: string;
+  slot_id: string;
+  subject: string;
+  day_text: string;
+  date_formatted: string;
+  completed: 'Sim' | 'Parcialmente' | 'Não';
+  engagement: number;
+  regulation: 'Regulado' | 'Desatento' | 'Agitado' | 'Sobrecarga';
+  triggers: string[];
+  notes: string;
+  author_name: string;
+  author_role: string;
+}
+
+// Grade de Aulas Padrão
+const DEFAULT_SLOTS: ScheduleSlot[] = [
+  { id: '1', order: '1ª AULA', time: '08:00', subject: 'Matemática', iconType: 'math' },
+  { id: '2', order: '2ª AULA', time: '08:50', subject: 'Português', iconType: 'portugues' },
+  { id: '3', order: '3ª AULA', time: '09:40', subject: 'Educação Física', iconType: 'pe' },
+  { id: '4', order: '4ª AULA', time: '10:30', subject: 'Lanche & Socialização', iconType: 'snack' },
+  { id: '5', order: '5ª AULA', time: '11:00', subject: 'Ciências', iconType: 'science' },
+  { id: '6', order: '6ª AULA', time: '11:50', subject: 'Artes Visuais', iconType: 'art' },
+];
+
+// Histórico Inicial de Exemplo
+const INITIAL_LOGS: DailyLog[] = [
+  {
+    id: 'log-1',
+    slot_id: '2',
+    subject: 'Português',
+    day_text: 'Terça',
+    date_formatted: '18/08/2026',
+    completed: 'Sim',
+    engagement: 5,
+    regulation: 'Regulado',
+    triggers: [],
+    notes: 'Participou ativamente da leitura em voz alta. Ótimo foco!',
+    author_name: 'Mariana',
+    author_role: 'Acompanhante Terapêutica'
+  },
+  {
+    id: 'log-2',
+    slot_id: '5',
+    subject: 'Ciências',
+    day_text: 'Terça',
+    date_formatted: '18/08/2026',
+    completed: 'Parcialmente',
+    engagement: 3,
+    regulation: 'Desatento',
+    triggers: ['Barulho alto', 'Cansaço'],
+    notes: 'Houve ruído na reforma do pátio. Precisamos fazer uma pausa de 3min no cantinho calmo.',
+    author_name: 'Mariana',
+    author_role: 'Acompanhante Terapêutica'
+  }
+];
+
+export default function PrismaApp() {
   const [user, setUser] = useState<any>(null);
-  const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [currentRole, setCurrentRole] = useState<'none' | 'at' | 'pais' | 'terapeuta'>('none');
+  
+  const [slots] = useState<ScheduleSlot[]>(DEFAULT_SLOTS);
+  const [logs, setLogs] = useState<DailyLog[]>(INITIAL_LOGS);
+  const [selectedSlotForModal, setSelectedSlotForModal] = useState<ScheduleSlot | null>(null);
 
-  // Estados do Paciente
-  const [patient, setPatient] = useState<any>(null);
-  const [patientCodeInput, setPatientCodeInput] = useState('');
-  const [flowState, setFlowState] = useState<'SELECT_ROLE' | 'CONNECT_PATIENT' | 'CREATE_PATIENT' | 'APP'>('SELECT_ROLE');
-
-  // Cadastro de Novo Paciente
-  const [newPatientForm, setNewPatientForm] = useState({
-    full_name: '',
-    grade_level: '2º Ano Fundamental',
-    school_name: '',
-    support_level: 'Nível 1 (Leve)',
-    photo_emoji: '👦🏻'
-  });
-
-  // Dados do App
-  const [activeTab, setActiveTab] = useState<'grade' | 'dicas' | 'relatorios'>('grade');
-  const [slots, setSlots] = useState<any[]>([]);
-  const [dailyLogs, setDailyLogs] = useState<any[]>([]);
-  const [guidelines, setGuidelines] = useState<any[]>([]);
-  const [selectedSlot, setSelectedSlot] = useState<any>(null);
-
-  // Formulários de Registro e Diretrizes
-  const [logForm, setLogForm] = useState({
-    completed_activity: 'total',
-    prompt_level: 'independente',
-    regulation_state: 'regulado',
-    sensory_notes: '',
-    observations: ''
-  });
-
-  const [showTipModal, setShowTipModal] = useState(false);
-  const [newTip, setNewTip] = useState({
-    title: '',
-    category: 'pedagogico',
-    description: '',
-    target_audience: 'todos'
+  // Estado do Formulário do AT (Modal)
+  const [formData, setFormData] = useState({
+    completed: 'Sim' as 'Sim' | 'Parcialmente' | 'Não',
+    engagement: 5,
+    regulation: 'Regulado' as 'Regulado' | 'Desatento' | 'Agitado' | 'Sobrecarga',
+    triggers: [] as string[],
+    notes: ''
   });
 
   useEffect(() => {
-    checkSession();
-  }, []);
-
-  useEffect(() => {
-    if (patient) {
-      loadPatientData(patient.id);
-    }
-  }, [patient]);
-
-  const checkSession = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.user) {
-      setUser(session.user);
-      await fetchUserProfile(session.user);
-    }
-    setLoading(false);
-  };
-
-  const fetchUserProfile = async (currentUser: any) => {
-    const { data: prof } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', currentUser.id)
-      .single();
-
-    if (prof) {
-      setProfile(prof);
-      // Verificar se o usuário já tem um paciente vinculado
-      const { data: member } = await supabase
-        .from('patient_members')
-        .select('patient_id, patients(*)')
-        .eq('profile_id', currentUser.id)
-        .limit(1)
-        .single();
-
-      if (member?.patients) {
-        setPatient(member.patients);
-        setFlowState('APP');
-        if (prof.role === 'terapeuta_clinico') setActiveTab('dicas');
-        if (prof.role === 'pais') setActiveTab('relatorios');
-      } else {
-        setFlowState('CONNECT_PATIENT');
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        setUser(session.user);
       }
-    } else {
-      setFlowState('SELECT_ROLE');
-    }
-  };
+      setLoading(false);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   const handleGoogleLogin = async () => {
     await supabase.auth.signInWithOAuth({
@@ -107,214 +113,172 @@ export default function MultitenantApp() {
     });
   };
 
-  const handleSelectRole = async (role: string, specialty: string) => {
-    if (!user) return;
-    const newProf = {
-      id: user.id,
-      email: user.email,
-      full_name: user.user_metadata?.full_name || 'Profissional/Responsável',
-      avatar_url: user.user_metadata?.avatar_url,
-      role,
-      specialty
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    setUser(null);
+    setCurrentRole('none');
+  };
+
+  const toggleTrigger = (triggerName: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      triggers: prev.triggers.includes(triggerName)
+        ? prev.triggers.filter((t) => t !== triggerName)
+        : [...prev.triggers, triggerName]
+    }));
+  };
+
+  const handleOpenModal = (slot: ScheduleSlot) => {
+    const existingLog = logs.find((l) => l.slot_id === slot.id);
+    if (existingLog) {
+      setFormData({
+        completed: existingLog.completed,
+        engagement: existingLog.engagement,
+        regulation: existingLog.regulation,
+        triggers: existingLog.triggers || [],
+        notes: existingLog.notes || ''
+      });
+    } else {
+      setFormData({
+        completed: 'Sim',
+        engagement: 5,
+        regulation: 'Regulado',
+        triggers: [],
+        notes: ''
+      });
+    }
+    setSelectedSlotForModal(slot);
+  };
+
+  const handleSaveLog = () => {
+    if (!selectedSlotForModal) return;
+
+    const newLogEntry: DailyLog = {
+      id: `log-${Date.now()}`,
+      slot_id: selectedSlotForModal.id,
+      subject: selectedSlotForModal.subject,
+      day_text: 'Hoje',
+      date_formatted: new Date().toLocaleDateString('pt-BR'),
+      completed: formData.completed,
+      engagement: formData.engagement,
+      regulation: formData.regulation,
+      triggers: formData.triggers,
+      notes: formData.notes,
+      author_name: user?.user_metadata?.full_name?.split(' ')[0] || 'Mariana',
+      author_role: 'Acompanhante Terapêutica'
     };
 
-    const { error } = await supabase.from('profiles').upsert(newProf);
-    if (!error) {
-      setProfile(newProf);
-      setFlowState('CONNECT_PATIENT');
+    setLogs((prev) => [newLogEntry, ...prev.filter((l) => l.slot_id !== selectedSlotForModal.id)]);
+    setSelectedSlotForModal(null);
+  };
+
+  const getSlotIcon = (type: string) => {
+    switch (type) {
+      case 'math':
+        return (
+          <div className="w-12 h-12 rounded-2xl bg-blue-100 border border-blue-200 flex items-center justify-center text-xl font-bold text-blue-600">
+            🔢
+          </div>
+        );
+      case 'portugues':
+        return (
+          <div className="w-12 h-12 rounded-2xl bg-emerald-100 border border-emerald-200 flex items-center justify-center text-xl font-bold text-emerald-600">
+            📚
+          </div>
+        );
+      case 'pe':
+        return (
+          <div className="w-12 h-12 rounded-2xl bg-amber-100 border border-amber-200 flex items-center justify-center text-xl font-bold text-amber-600">
+            ⚽
+          </div>
+        );
+      case 'snack':
+        return (
+          <div className="w-12 h-12 rounded-2xl bg-orange-100 border border-orange-200 flex items-center justify-center text-xl font-bold text-orange-600">
+            🥪
+          </div>
+        );
+      case 'science':
+        return (
+          <div className="w-12 h-12 rounded-2xl bg-teal-100 border border-teal-200 flex items-center justify-center text-xl font-bold text-teal-600">
+            🌱
+          </div>
+        );
+      default:
+        return (
+          <div className="w-12 h-12 rounded-2xl bg-purple-100 border border-purple-200 flex items-center justify-center text-xl font-bold text-purple-600">
+            🎨
+          </div>
+        );
     }
   };
 
-  // VINCULAR POR CÓDIGO EXISTENTE
-  const handleConnectByCode = async () => {
-    if (!patientCodeInput.trim()) return;
-    const cleanCode = patientCodeInput.trim().toUpperCase();
-
-    const { data: foundPatient, error } = await supabase
-      .from('patients')
-      .select('*')
-      .eq('code', cleanCode)
-      .single();
-
-    if (error || !foundPatient) {
-      alert('Código não encontrado. Verifique com o responsável pelo aluno.');
-      return;
-    }
-
-    await supabase.from('patient_members').upsert({
-      patient_id: foundPatient.id,
-      profile_id: user.id,
-      role_in_patient: profile?.specialty || profile?.role
-    });
-
-    setPatient(foundPatient);
-    setFlowState('APP');
-  };
-
-  // CADASTRAR NOVO ALUNO/PACIENTE (GERA CÓDIGO ALEATÓRIO)
-  const handleCreatePatient = async () => {
-    if (!newPatientForm.full_name.trim()) return;
-
-    // Gerar Código Amigável (ex: ROD-8492)
-    const prefix = newPatientForm.full_name.slice(0, 3).toUpperCase();
-    const randomNum = Math.floor(1000 + Math.random() * 9000);
-    const generatedCode = `${prefix}-${randomNum}`;
-
-    const { data: createdPatient, error } = await supabase
-      .from('patients')
-      .insert({
-        code: generatedCode,
-        full_name: newPatientForm.full_name,
-        grade_level: newPatientForm.grade_level,
-        school_name: newPatientForm.school_name,
-        support_level: newPatientForm.support_level,
-        photo_emoji: newPatientForm.photo_emoji,
-        created_by: user.id
-      })
-      .select()
-      .single();
-
-    if (!error && createdPatient) {
-      // Vincula o criador como membro
-      await supabase.from('patient_members').insert({
-        patient_id: createdPatient.id,
-        profile_id: user.id,
-        role_in_patient: profile?.specialty || 'Responsável'
-      });
-
-      // Cria a grade semanal padrão do aluno
-      await createDefaultSchedule(createdPatient.id);
-
-      setPatient(createdPatient);
-      setFlowState('APP');
-    }
-  };
-
-  const createDefaultSchedule = async (patientId: string) => {
-    const defaultSlots = [
-      { day_of_week: 1, start_time: '07:30', end_time: '08:20', subject: 'Acolhimento / Roda', icon: '☀️' },
-      { day_of_week: 1, start_time: '08:20', end_time: '09:10', subject: 'Língua Portuguesa', icon: '📖' },
-      { day_of_week: 1, start_time: '09:10', end_time: '09:30', subject: 'Lanche / Recreio', icon: '🥪' },
-      { day_of_week: 1, start_time: '09:30', end_time: '10:20', subject: 'Matemática', icon: '🔢' },
-      { day_of_week: 1, start_time: '10:20', end_time: '11:10', subject: 'Educação Física', icon: '⚽' },
-      { day_of_week: 1, start_time: '11:10', end_time: '12:00', subject: 'Artes / Expressão', icon: '🎨' }
-    ];
-
-    const slotsToInsert = defaultSlots.map(s => ({ ...s, patient_id: patientId }));
-    await supabase.from('schedule_slots').insert(slotsToInsert);
-  };
-
-  const loadPatientData = async (patientId: string) => {
-    const todayIndex = new Date().getDay();
-    const weekday = todayIndex === 0 || todayIndex === 6 ? 1 : todayIndex;
-
-    const { data: slotsData } = await supabase
-      .from('schedule_slots')
-      .select('*')
-      .eq('patient_id', patientId)
-      .eq('day_of_week', weekday)
-      .order('start_time', { ascending: true });
-
-    if (slotsData) setSlots(slotsData);
-
-    const todayStr = new Date().toISOString().split('T')[0];
-    const { data: logsData } = await supabase
-      .from('daily_logs')
-      .select('*')
-      .eq('patient_id', patientId)
-      .eq('date', todayStr);
-
-    if (logsData) setDailyLogs(logsData);
-
-    const { data: tipsData } = await supabase
-      .from('therapeutic_guidelines')
-      .select('*')
-      .eq('patient_id', patientId)
-      .order('created_at', { ascending: false });
-
-    if (tipsData) setGuidelines(tipsData);
-  };
-
-  const handleSaveLog = async () => {
-    if (!selectedSlot || !user || !patient) return;
-    const todayStr = new Date().toISOString().split('T')[0];
-
-    const { error } = await supabase.from('daily_logs').insert({
-      patient_id: patient.id,
-      slot_id: selectedSlot.id,
-      date: todayStr,
-      subject_name: selectedSlot.subject,
-      completed_activity: logForm.completed_activity,
-      prompt_level: logForm.prompt_level,
-      regulation_state: logForm.regulation_state,
-      sensory_notes: logForm.sensory_notes,
-      observations: logForm.observations,
-      created_by: user.id
-    });
-
-    if (!error) {
-      setSelectedSlot(null);
-      setLogForm({
-        completed_activity: 'total',
-        prompt_level: 'independente',
-        regulation_state: 'regulado',
-        sensory_notes: '',
-        observations: ''
-      });
-      loadPatientData(patient.id);
-    }
-  };
-
-  const handleCreateTip = async () => {
-    if (!user || !patient || !newTip.title) return;
-    const { error } = await supabase.from('therapeutic_guidelines').insert({
-      patient_id: patient.id,
-      title: newTip.title,
-      category: newTip.category,
-      description: newTip.description,
-      target_audience: newTip.target_audience,
-      author_id: user.id,
-      author_name: profile?.full_name || 'Profissional',
-      author_role: profile?.specialty || 'Terapeuta'
-    });
-
-    if (!error) {
-      setShowTipModal(false);
-      setNewTip({ title: '', category: 'pedagogico', description: '', target_audience: 'todos' });
-      loadPatientData(patient.id);
+  const getRegulationBadge = (reg: string) => {
+    switch (reg) {
+      case 'Regulado':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-slate-200 bg-white text-xs font-bold text-slate-800 shadow-sm">
+            Regulado <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+          </span>
+        );
+      case 'Desatento':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-slate-200 bg-white text-xs font-bold text-slate-800 shadow-sm">
+            Desatento <span className="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
+          </span>
+        );
+      case 'Agitado':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-slate-200 bg-white text-xs font-bold text-slate-800 shadow-sm">
+            Agitado <span className="w-2.5 h-2.5 rounded-full bg-orange-500"></span>
+          </span>
+        );
+      default:
+        return (
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-slate-200 bg-white text-xs font-bold text-slate-800 shadow-sm">
+            Sobrecarga <span className="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
+          </span>
+        );
     }
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center text-white">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
-          <p className="font-semibold text-slate-300">Carregando Sistema Multidisciplinar...</p>
-        </div>
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
       </div>
     );
   }
 
-  // TELA 1: LOGIN COM GOOGLE
+  // =========================================================================
+  // 1. TELA DE LOGIN (100% BRANCA COM LOGO AMPLIADO E SEM O TEXTO DUPLICADO)
+  // =========================================================================
   if (!user) {
     return (
-      <main className="min-h-screen bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-white/95 backdrop-blur-md rounded-3xl shadow-2xl p-8 text-center border border-white/30">
-          <div className="w-20 h-20 mx-auto mb-4 rounded-3xl bg-indigo-50 flex items-center justify-center text-4xl shadow-inner border border-indigo-100">
-            🧩
+      <main className="min-h-screen bg-white flex flex-col justify-center items-center px-6 py-10 text-center">
+        <div className="max-w-md w-full flex flex-col items-center">
+          
+          {/* Logo Ampliado e Integrado */}
+          <div className="w-full flex justify-center mb-6">
+            <img 
+              src="/logo.png" 
+              alt="Prisma" 
+              className="w-full max-w-[340px] sm:max-w-[400px] h-auto object-contain mix-blend-multiply"
+            />
           </div>
-          <h1 className="text-2xl font-black text-slate-800">Plataforma Inclusiva</h1>
-          <p className="text-xs uppercase tracking-wider font-bold text-indigo-600 mt-1">
-            Mediação Escolar • Terapia • Família
-          </p>
-          <p className="text-slate-600 text-sm mt-3 leading-relaxed">
-            Acompanhamento integrado de rotina, autorregulação sensorial e diretrizes pedagógicas para crianças no espectro autista.
-          </p>
+
+          <div className="space-y-2 mb-8">
+            <p className="text-xs font-black uppercase tracking-widest text-indigo-600">
+              CONEXÃO ESCOLAR • TERAPIA • FAMÍLIA
+            </p>
+            <p className="text-slate-500 text-xs sm:text-sm leading-relaxed max-w-xs mx-auto">
+              Plataforma unificada para registro de mediação escolar e acompanhamento terapêutico.
+            </p>
+          </div>
 
           <button
             onClick={handleGoogleLogin}
-            className="mt-8 w-full py-4 px-6 bg-white hover:bg-slate-50 border-2 border-slate-200 text-slate-700 font-bold rounded-2xl shadow-sm hover:shadow transition flex items-center justify-center gap-3 active:scale-95"
+            className="w-full max-w-sm py-4 px-6 bg-white hover:bg-slate-50 border-2 border-slate-200 hover:border-slate-300 text-slate-700 font-bold rounded-2xl shadow-sm hover:shadow transition flex items-center justify-center gap-3 active:scale-[0.98]"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24">
               <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -322,517 +286,477 @@ export default function MultitenantApp() {
               <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
               <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
             </svg>
-            Entrar com o Google
+            Entrar com conta Google
           </button>
         </div>
       </main>
     );
   }
 
-  // TELA 2: DEFINIÇÃO DE PAPEL DO USUÁRIO
-  if (flowState === 'SELECT_ROLE') {
+  // =========================================================================
+  // 2. TELA DE SELEÇÃO DE PAPEL / ACESSO DO USUÁRIO (Fiel à Imagem 15)
+  // =========================================================================
+  if (currentRole === 'none') {
     return (
-      <main className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-white rounded-3xl shadow-xl p-6 sm:p-8">
-          <h2 className="text-2xl font-black text-slate-800 text-center">Identificação</h2>
-          <p className="text-slate-500 text-xs text-center mt-1 mb-6">Como você atua na equipe multidisciplinar?</p>
+      <main className="min-h-screen bg-[#F4F7FB] flex flex-col justify-between items-center p-4 sm:p-6">
+        {/* Botão Sair no Topo */}
+        <div className="w-full max-w-md flex justify-end">
+          <button
+            onClick={handleSignOut}
+            className="text-xs font-bold text-slate-500 hover:text-red-600 flex items-center gap-1.5 py-1.5 px-3 rounded-lg hover:bg-slate-200/50 transition"
+          >
+            <LogOut className="w-4 h-4" />
+            <span>Sair da conta</span>
+          </button>
+        </div>
 
+        {/* Card Central */}
+        <div className="w-full max-w-md bg-white rounded-[2.5rem] shadow-xl p-6 sm:p-8 space-y-6 border border-slate-100 my-auto">
+          
+          {/* Avatar com Aro Azul e Badge "7 anos" */}
+          <div className="flex flex-col items-center">
+            <div className="relative w-24 h-24 rounded-full border-4 border-blue-400 p-1 bg-white shadow-sm flex items-center justify-center">
+              <span className="text-5xl">👦🏻</span>
+              <span className="absolute -bottom-2 bg-[#10B981] text-white text-[11px] font-black px-2.5 py-0.5 rounded-full shadow-sm">
+                7 anos
+              </span>
+            </div>
+
+            <h1 className="text-2xl sm:text-3xl font-black text-slate-900 mt-4 tracking-tight">
+              Rodrigo Pedrosa
+            </h1>
+            <p className="text-slate-500 text-xs sm:text-sm text-center mt-1 leading-snug">
+              Sistema Integrado de Acompanhamento Terapêutico Escolar
+            </p>
+          </div>
+
+          {/* Banner de Acesso */}
+          <div className="bg-[#EDF5FD] border border-[#D0E6FC] rounded-2xl py-3 px-4 text-center">
+            <p className="text-[11px] font-black tracking-wider uppercase text-[#0284C7]">
+              ACESSO DO USUÁRIO
+            </p>
+            <p className="text-slate-700 text-xs font-semibold mt-0.5">
+              Quem está acessando o sistema hoje?
+            </p>
+          </div>
+
+          {/* Os 3 Botões de Papel */}
           <div className="space-y-3">
+            {/* Opção 1: AT */}
             <button
-              onClick={() => handleSelectRole('at_escola', 'Acompanhante Terapêutico (AT)')}
-              className="w-full p-4 rounded-2xl border-2 border-indigo-100 hover:border-indigo-500 bg-indigo-50/30 flex items-center gap-4 text-left transition"
+              onClick={() => setCurrentRole('at')}
+              className="w-full p-4 rounded-2xl border border-indigo-100 bg-[#F5F5FE] hover:bg-[#ECECFE] transition flex items-center gap-4 text-left active:scale-[0.98]"
             >
-              <span className="text-3xl">🎒</span>
+              <div className="w-12 h-12 rounded-2xl bg-[#4F46E5] text-white flex items-center justify-center text-2xl shadow-sm shrink-0">
+                🎒
+              </div>
               <div>
-                <div className="font-bold text-slate-800 text-sm">Acompanhante Terapêutico (AT)</div>
-                <div className="text-xs text-slate-500">Mediação em sala de aula e apoio comportamental</div>
+                <div className="font-black text-slate-800 text-sm sm:text-base">
+                  Acompanhante Terapêutico (AT)
+                </div>
+                <div className="text-xs text-slate-500">
+                  Acompanhamento presencial e registro de aulas
+                </div>
               </div>
             </button>
 
+            {/* Opção 2: Pais */}
             <button
-              onClick={() => handleSelectRole('terapeuta_clinico', 'Terapeuta (TO / Fono / Psico)')}
-              className="w-full p-4 rounded-2xl border-2 border-teal-100 hover:border-teal-500 bg-teal-50/30 flex items-center gap-4 text-left transition"
+              onClick={() => setCurrentRole('pais')}
+              className="w-full p-4 rounded-2xl border border-amber-200 bg-[#FEFBF2] hover:bg-[#FDF6E3] transition flex items-center gap-4 text-left active:scale-[0.98]"
             >
-              <span className="text-3xl">🩺</span>
+              <div className="w-12 h-12 rounded-2xl bg-[#F59E0B] text-white flex items-center justify-center text-2xl shadow-sm shrink-0">
+                🏡
+              </div>
               <div>
-                <div className="font-bold text-slate-800 text-sm">Terapeuta Clínico(a)</div>
-                <div className="text-xs text-slate-500">Psicólogo, Terapeuta Ocupacional, Fonoaudiólogo</div>
+                <div className="font-black text-slate-800 text-sm sm:text-base">
+                  Pais / Responsáveis
+                </div>
+                <div className="text-xs text-slate-500">
+                  Visualizar relatórios, relatórios semanais e gráficos
+                </div>
               </div>
             </button>
 
+            {/* Opção 3: Terapeuta */}
             <button
-              onClick={() => handleSelectRole('pais', 'Responsável')}
-              className="w-full p-4 rounded-2xl border-2 border-amber-100 hover:border-amber-500 bg-amber-50/30 flex items-center gap-4 text-left transition"
+              onClick={() => setCurrentRole('terapeuta')}
+              className="w-full p-4 rounded-2xl border border-emerald-200 bg-[#F0FDF4] hover:bg-[#DCFCE7] transition flex items-center gap-4 text-left active:scale-[0.98]"
             >
-              <span className="text-3xl">🏡</span>
-              <div>
-                <div className="font-bold text-slate-800 text-sm">Pai / Mãe / Responsável</div>
-                <div className="text-xs text-slate-500">Acompanhamento geral e relatórios diários</div>
+              <div className="w-12 h-12 rounded-2xl bg-[#10B981] text-white flex items-center justify-center text-2xl shadow-sm shrink-0">
+                🩺
               </div>
-            </button>
-
-            <button
-              onClick={() => handleSelectRole('professor', 'Professor(a) Escolar')}
-              className="w-full p-4 rounded-2xl border-2 border-pink-100 hover:border-pink-500 bg-pink-50/30 flex items-center gap-4 text-left transition"
-            >
-              <span className="text-3xl">👩🏻‍🏫</span>
               <div>
-                <div className="font-bold text-slate-800 text-sm">Professor(a) Regente / AEE</div>
-                <div className="text-xs text-slate-500">Adaptações pedagógicas e suporte em grupo</div>
+                <div className="font-black text-slate-800 text-sm sm:text-base">
+                  Terapeuta Clínico
+                </div>
+                <div className="text-xs text-slate-500">
+                  Análise de dados e criação de dicas práticas
+                </div>
               </div>
             </button>
           </div>
         </div>
+
+        <div className="h-4"></div>
       </main>
     );
   }
 
-  // TELA 3: ESCOLHA ENTRE INSERIR CÓDIGO OU CADASTRAR NOVO ALUNO
-  if (flowState === 'CONNECT_PATIENT') {
+  // =========================================================================
+  // 3A. VISÃO DO AT: GRADE DE AULAS (Fiel à Imagem 16)
+  // =========================================================================
+  if (currentRole === 'at') {
     return (
-      <main className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-white rounded-3xl shadow-xl p-6 sm:p-8 space-y-6">
-          <div className="text-center">
-            <h2 className="text-2xl font-black text-slate-800">Conectar Paciente</h2>
-            <p className="text-slate-500 text-xs mt-1">Conecte-se a um aluno existente ou inicie um novo cadastro.</p>
+      <div className="min-h-screen bg-[#F4F7FB] pb-12">
+        {/* Cabeçalho */}
+        <header className="bg-white border-b border-slate-100 p-4 sticky top-0 z-10 shadow-sm">
+          <div className="max-w-xl mx-auto flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-full border-2 border-blue-400 p-0.5 bg-white flex items-center justify-center text-2xl shadow-sm">
+                👦🏻
+              </div>
+              <div>
+                <h2 className="font-black text-slate-900 text-base leading-tight">Rodrigo Pedrosa</h2>
+                <p className="text-[11px] text-slate-400 font-medium">7 anos • 2º Ano Ensino Fundamental</p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setCurrentRole('none')}
+              className="py-1.5 px-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition active:scale-95"
+            >
+              Trocar Perfil
+            </button>
+          </div>
+        </header>
+
+        {/* Lista de Aulas */}
+        <main className="max-w-xl mx-auto p-4 sm:p-6 space-y-4">
+          <div className="flex justify-between items-center px-1">
+            <h3 className="text-sm font-black text-slate-700 uppercase tracking-wide">
+              Rotina Escolar de Hoje
+            </h3>
+            <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg">
+              {logs.length} de {slots.length} preenchidas
+            </span>
           </div>
 
-          {/* Opção 1: Digitar Código */}
-          <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
-            <div className="flex items-center gap-2 font-bold text-slate-800 text-sm">
-              <KeyRound className="w-4 h-4 text-indigo-600" />
-              Tenho um Código de Acesso
-            </div>
-            <p className="text-xs text-slate-500">Insira o código fornecido pelos responsáveis:</p>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                placeholder="Ex: ROD-7492"
-                value={patientCodeInput}
-                onChange={(e) => setPatientCodeInput(e.target.value.toUpperCase())}
-                className="flex-1 p-3 rounded-xl border border-slate-300 font-mono font-bold uppercase text-center text-sm focus:outline-indigo-500"
-              />
-              <button
-                onClick={handleConnectByCode}
-                className="px-5 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs transition"
+          {slots.map((slot) => {
+            const hasLog = logs.find((l) => l.slot_id === slot.id);
+            return (
+              <div
+                key={slot.id}
+                className="bg-white rounded-[2rem] border border-slate-100 p-5 sm:p-6 shadow-sm space-y-4"
               >
-                Acessar
+                {/* Topo do Card */}
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-400 tracking-wider">
+                    {slot.order} ({slot.time})
+                  </span>
+
+                  {hasLog ? (
+                    <span className="bg-[#D1FAE5] text-[#065F46] text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1">
+                      <Check className="w-3.5 h-3.5" /> Concluído
+                    </span>
+                  ) : (
+                    <span className="bg-[#FEF3C7] text-[#92400E] text-xs font-bold px-3 py-1 rounded-full">
+                      Pendente
+                    </span>
+                  )}
+                </div>
+
+                {/* Nome e Ícone */}
+                <div className="flex items-center gap-3.5">
+                  {getSlotIcon(slot.iconType)}
+                  <div>
+                    <h4 className="text-lg font-black text-slate-900 leading-tight">
+                      {slot.subject}
+                    </h4>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Clique para abrir o formulário rápido
+                    </p>
+                  </div>
+                </div>
+
+                {/* Botão de Registro */}
+                <button
+                  onClick={() => handleOpenModal(slot)}
+                  className={`w-full py-3.5 rounded-2xl font-bold text-sm text-center transition active:scale-[0.98] shadow-sm ${
+                    hasLog
+                      ? 'bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200'
+                      : 'bg-[#4F46E5] hover:bg-[#4338CA] text-white shadow-indigo-200'
+                  }`}
+                >
+                  {hasLog ? 'Ver / Editar Registro' : 'Registrar Acompanhamento'}
+                </button>
+              </div>
+            );
+          })}
+        </main>
+
+        {/* =================================================================== */}
+        {/* MODAL DO AT: REGISTRO DA AULA (Fiel à Imagem 14) */}
+        {/* =================================================================== */}
+        {selectedSlotForModal && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 z-50">
+            <div className="bg-white w-full max-w-lg rounded-t-[2.5rem] sm:rounded-[2.5rem] p-6 sm:p-8 space-y-5 max-h-[90vh] overflow-y-auto shadow-2xl animate-in slide-in-from-bottom">
+              
+              {/* Header do Modal */}
+              <div className="flex justify-between items-start border-b border-slate-100 pb-4">
+                <div>
+                  <span className="text-xs font-black tracking-wider text-[#4F46E5] uppercase">
+                    {selectedSlotForModal.order} ({selectedSlotForModal.time})
+                  </span>
+                  <h3 className="text-2xl font-black text-slate-900 mt-0.5">
+                    {selectedSlotForModal.subject}
+                  </h3>
+                </div>
+                <button
+                  onClick={() => setSelectedSlotForModal(null)}
+                  className="w-9 h-9 bg-slate-100 hover:bg-slate-200 rounded-full flex items-center justify-center text-slate-500 font-bold transition"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Realização das Atividades */}
+              <div>
+                <label className="text-xs font-black tracking-wider uppercase text-slate-700 block mb-2">
+                  CONSEGUIU REALIZAR AS ATIVIDADES?
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {(['Sim', 'Parcialmente', 'Não'] as const).map((opt) => (
+                    <button
+                      key={opt}
+                      type="button"
+                      onClick={() => setFormData({ ...formData, completed: opt })}
+                      className={`py-3 rounded-2xl font-bold text-xs transition border ${
+                        formData.completed === opt
+                          ? 'bg-[#4F46E5] text-white border-[#4F46E5] shadow-sm'
+                          : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      {opt}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Nível de Engajamento */}
+              <div>
+                <label className="text-xs font-black tracking-wider uppercase text-slate-700 block mb-2">
+                  NÍVEL DE ENGAJAMENTO / FOCO (1 A 5)
+                </label>
+                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 flex justify-around items-center">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      type="button"
+                      onClick={() => setFormData({ ...formData, engagement: star })}
+                      className="p-1 transition transform active:scale-125"
+                    >
+                      <Star
+                        className={`w-7 h-7 ${
+                          star <= formData.engagement
+                            ? 'text-[#F59E0B] fill-[#F59E0B]'
+                            : 'text-slate-300'
+                        }`}
+                      />
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Estado Sensorial */}
+              <div>
+                <label className="text-xs font-black tracking-wider uppercase text-slate-700 block mb-2">
+                  ESTADO DE REGULAÇÃO SENSORIAL
+                </label>
+                <select
+                  value={formData.regulation}
+                  onChange={(e) => setFormData({ ...formData, regulation: e.target.value as any })}
+                  className="w-full p-3.5 rounded-2xl border border-slate-200 bg-white font-bold text-xs text-slate-800 focus:outline-indigo-600 shadow-sm"
+                >
+                  <option value="Regulado">Regulado 🟢 (Calmo e receptivo)</option>
+                  <option value="Desatento">Desatento 🟡 (Disperso ou sonolento)</option>
+                  <option value="Agitado">Agitado ⚡ (Inquieto ou hiperativo)</option>
+                  <option value="Sobrecarga">Sobrecarga 🔴 (Em crise ou desregulado)</option>
+                </select>
+              </div>
+
+              {/* Gatilhos Observados */}
+              <div>
+                <label className="text-xs font-black tracking-wider uppercase text-slate-700 block mb-2">
+                  GATILHOS OBSERVADOS (OPCIONAL)
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    'Barulho alto',
+                    'Mudança de rotina',
+                    'Esforço motor/escrita',
+                    'Transição de aula',
+                    'Cansaço',
+                    'Luz forte',
+                    'Frustração'
+                  ].map((trigger) => {
+                    const isSelected = formData.triggers.includes(trigger);
+                    return (
+                      <button
+                        key={trigger}
+                        type="button"
+                        onClick={() => toggleTrigger(trigger)}
+                        className={`py-2 px-3.5 rounded-full text-xs font-semibold transition border ${
+                          isSelected
+                            ? 'bg-indigo-50 border-indigo-500 text-indigo-700 font-bold'
+                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                        }`}
+                      >
+                        {trigger}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Observações */}
+              <div>
+                <label className="text-xs font-black tracking-wider uppercase text-slate-700 block mb-2">
+                  OBSERVAÇÕES ADICIONAIS
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder="Ex: Utilizou o suporte visual para finalizar a página 12..."
+                  value={formData.notes}
+                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                  className="w-full p-3.5 rounded-2xl border border-slate-200 text-xs bg-slate-50 focus:bg-white focus:outline-indigo-600 transition"
+                />
+              </div>
+
+              {/* Salvar */}
+              <button
+                onClick={handleSaveLog}
+                className="w-full py-4 bg-[#4F46E5] hover:bg-[#4338CA] text-white font-bold text-sm rounded-2xl shadow-md transition active:scale-[0.98]"
+              >
+                Salvar Acompanhamento da Aula
               </button>
             </div>
           </div>
-
-          <div className="relative flex items-center justify-center">
-            <div className="border-t border-slate-200 w-full"></div>
-            <span className="bg-white px-3 text-xs font-bold text-slate-400 uppercase">ou</span>
-          </div>
-
-          {/* Opção 2: Cadastrar Novo Aluno */}
-          <button
-            onClick={() => setFlowState('CREATE_PATIENT')}
-            className="w-full p-4 rounded-2xl border-2 border-dashed border-indigo-200 hover:border-indigo-500 hover:bg-indigo-50/50 text-indigo-600 font-bold text-xs flex items-center justify-center gap-2 transition"
-          >
-            <UserPlus className="w-4 h-4" />
-            Cadastrar Novo Aluno / Filho na Plataforma
-          </button>
-        </div>
-      </main>
+        )}
+      </div>
     );
   }
 
-  // TELA 4: FORMULÁRIO DE CADASTRO DO NOVO PACIENTE
-  if (flowState === 'CREATE_PATIENT') {
-    return (
-      <main className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-white rounded-3xl shadow-xl p-6 sm:p-8 space-y-4">
-          <div className="flex items-center justify-between border-b pb-3">
-            <h2 className="text-xl font-black text-slate-800">Cadastrar Aluno</h2>
-            <button onClick={() => setFlowState('CONNECT_PATIENT')} className="text-xs font-bold text-slate-400">Voltar</button>
-          </div>
-
-          <div>
-            <label className="text-xs font-bold text-slate-700 block mb-1">Nome Completo do Aluno:</label>
-            <input
-              type="text"
-              placeholder="Ex: Rodrigo Pedrosa"
-              value={newPatientForm.full_name}
-              onChange={(e) => setNewPatientForm({ ...newPatientForm, full_name: e.target.value })}
-              className="w-full p-3 rounded-xl border border-slate-200 text-sm bg-slate-50"
-            />
-          </div>
-
-          <div>
-            <label className="text-xs font-bold text-slate-700 block mb-1">Ano Escolar / Turma:</label>
-            <input
-              type="text"
-              placeholder="Ex: 2º Ano Fundamental - Manhã"
-              value={newPatientForm.grade_level}
-              onChange={(e) => setNewPatientForm({ ...newPatientForm, grade_level: e.target.value })}
-              className="w-full p-3 rounded-xl border border-slate-200 text-sm bg-slate-50"
-            />
-          </div>
-
-          <div>
-            <label className="text-xs font-bold text-slate-700 block mb-1">Nome da Escola:</label>
-            <input
-              type="text"
-              placeholder="Ex: Colégio Aprender"
-              value={newPatientForm.school_name}
-              onChange={(e) => setNewPatientForm({ ...newPatientForm, school_name: e.target.value })}
-              className="w-full p-3 rounded-xl border border-slate-200 text-sm bg-slate-50"
-            />
-          </div>
-
-          <div>
-            <label className="text-xs font-bold text-slate-700 block mb-1">Nível de Suporte (TEA):</label>
-            <select
-              value={newPatientForm.support_level}
-              onChange={(e) => setNewPatientForm({ ...newPatientForm, support_level: e.target.value })}
-              className="w-full p-3 rounded-xl border border-slate-200 text-sm bg-slate-50 font-medium"
-            >
-              <option value="Nível 1 (Leve)">Nível 1 (Apoio leve)</option>
-              <option value="Nível 2 (Moderado)">Nível 2 (Apoio substancial)</option>
-              <option value="Nível 3 (Substancial)">Nível 3 (Apoio muito substancial)</option>
-            </select>
-          </div>
-
-          <button
-            onClick={handleCreatePatient}
-            className="w-full py-4 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm shadow-md transition mt-2"
-          >
-            Gerar Código e Criar Espaço
-          </button>
-        </div>
-      </main>
-    );
-  }
-
-  // TELA 5: PAINEL PRINCIPAL DO PACIENTE SELECIONADO
+  // =========================================================================
+  // 3B. VISÃO DOS PAIS E TERAPEUTAS: HISTÓRICO (Fiel à Imagem 13)
+  // =========================================================================
   return (
-    <div className="min-h-screen bg-slate-50 pb-20">
-      {/* Topo com Identificação e Código de Compartilhamento */}
-      <header className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 text-white p-4 sm:p-6 rounded-b-[2rem] shadow-lg">
-        <div className="max-w-4xl mx-auto flex items-center justify-between">
+    <div className="min-h-screen bg-[#F4F7FB] pb-12">
+      {/* Cabeçalho */}
+      <header className="bg-white border-b border-slate-100 p-4 sticky top-0 z-10 shadow-sm">
+        <div className="max-w-xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-white/20 border border-white/40 flex items-center justify-center text-2xl shadow-inner">
-              {patient?.photo_emoji || '👦🏻'}
+            <div className="w-11 h-11 rounded-full border-2 border-blue-400 p-0.5 bg-white flex items-center justify-center text-2xl shadow-sm">
+              👦🏻
             </div>
             <div>
-              <h1 className="font-black text-lg sm:text-xl leading-tight">{patient?.full_name}</h1>
-              <div className="flex items-center gap-2 mt-0.5">
-                <span className="bg-white/25 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider">
-                  Código: {patient?.code}
-                </span>
-                <span className="text-[11px] text-indigo-100 hidden sm:inline">{patient?.grade_level}</span>
-              </div>
+              <h2 className="font-black text-slate-900 text-base leading-tight">Rodrigo Pedrosa</h2>
+              <p className="text-[11px] text-slate-400 font-medium">7 anos • 2º Ano Ensino Fundamental</p>
             </div>
           </div>
 
           <button
-            onClick={() => { setPatient(null); setFlowState('CONNECT_PATIENT'); }}
-            className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold flex items-center gap-1 transition"
+            onClick={() => setCurrentRole('none')}
+            className="py-1.5 px-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition active:scale-95"
           >
-            <Users className="w-4 h-4" />
-            <span className="hidden sm:inline">Trocar Aluno</span>
-          </button>
-        </div>
-
-        {/* Barra de Navegação */}
-        <div className="max-w-4xl mx-auto flex gap-2 mt-6">
-          <button
-            onClick={() => setActiveTab('grade')}
-            className={`flex-1 py-2.5 px-3 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition ${
-              activeTab === 'grade' ? 'bg-white text-indigo-700 shadow-md' : 'bg-white/10 text-white hover:bg-white/20'
-            }`}
-          >
-            <BookOpen className="w-4 h-4" />
-            Grade de Hoje
-          </button>
-
-          <button
-            onClick={() => setActiveTab('dicas')}
-            className={`flex-1 py-2.5 px-3 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition ${
-              activeTab === 'dicas' ? 'bg-white text-indigo-700 shadow-md' : 'bg-white/10 text-white hover:bg-white/20'
-            }`}
-          >
-            <Sparkles className="w-4 h-4" />
-            Mural Clínico
-          </button>
-
-          <button
-            onClick={() => setActiveTab('relatorios')}
-            className={`flex-1 py-2.5 px-3 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition ${
-              activeTab === 'relatorios' ? 'bg-white text-indigo-700 shadow-md' : 'bg-white/10 text-white hover:bg-white/20'
-            }`}
-          >
-            <BarChart3 className="w-4 h-4" />
-            Visão Geral / Pais
+            Trocar Perfil
           </button>
         </div>
       </header>
 
-      {/* Conteúdo das Abas */}
-      <main className="max-w-4xl mx-auto p-4 sm:p-6">
+      {/* Conteúdo do Histórico */}
+      <main className="max-w-xl mx-auto p-4 sm:p-6 space-y-6">
         
-        {/* ABA 1: GRADE ESCOLAR */}
-        {activeTab === 'grade' && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-black text-slate-800">Aulas do Dia</h2>
-                <p className="text-xs text-slate-500">Toque na matéria para registrar a participação</p>
-              </div>
-              <span className="text-xs font-bold bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full">
-                {dailyLogs.length} de {slots.length} registradas
-              </span>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              {slots.map((slot) => {
-                const log = dailyLogs.find(l => l.slot_id === slot.id);
-                return (
-                  <div
-                    key={slot.id}
-                    onClick={() => setSelectedSlot(slot)}
-                    className={`cursor-pointer p-4 rounded-2xl border-2 transition flex items-center justify-between ${
-                      log 
-                        ? 'border-emerald-300 bg-emerald-50/50' 
-                        : 'border-slate-200 bg-white hover:border-indigo-400 hover:shadow-md'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center text-2xl">
-                        {slot.icon}
-                      </div>
-                      <div>
-                        <div className="text-xs font-bold text-slate-400 flex items-center gap-1">
-                          <Clock className="w-3 h-3" />
-                          {slot.start_time.slice(0, 5)} - {slot.end_time.slice(0, 5)}
-                        </div>
-                        <h3 className="font-bold text-slate-800 text-base">{slot.subject}</h3>
-                        {log && (
-                          <span className="text-[10px] font-bold px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-md">
-                            {log.completed_activity === 'total' ? 'Concluída' : 'Adaptada'} • {log.regulation_state}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    {log ? <CheckCircle2 className="w-6 h-6 text-emerald-500" /> : <ChevronRight className="w-5 h-5 text-slate-300" />}
-                  </div>
-                );
-              })}
-            </div>
+        {/* Título + Exportar PDF */}
+        <div className="bg-white rounded-[2rem] border border-slate-100 p-6 shadow-sm flex items-center justify-between">
+          <div>
+            <h3 className="text-xl font-black text-slate-900 leading-tight">
+              Histórico de<br />Acompanhamento
+            </h3>
+            <p className="text-xs text-slate-500 mt-1">
+              Anotações detalhadas feitas pelo Acompanhante Terapêutico
+            </p>
           </div>
-        )}
 
-        {/* ABA 2: MURAL CLÍNICO (DIRETRIZES) */}
-        {activeTab === 'dicas' && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-black text-slate-800">Diretrizes & Estratégias</h2>
-                <p className="text-xs text-slate-500">Manejo sensorial, pedagógico e comportamental</p>
-              </div>
-              <button
-                onClick={() => setShowTipModal(true)}
-                className="py-2 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center gap-2 shadow-sm"
-              >
-                <MessageSquarePlus className="w-4 h-4" />
-                Nova Diretriz
-              </button>
-            </div>
+          <button
+            onClick={() => window.print()}
+            className="p-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-2xl flex flex-col items-center justify-center text-slate-700 transition active:scale-95 shrink-0"
+          >
+            <span className="text-xl mb-0.5">📄</span>
+            <span className="text-[10px] font-black uppercase tracking-wider">Exportar<br />PDF</span>
+          </button>
+        </div>
 
-            <div className="space-y-3">
-              {guidelines.map((tip) => (
-                <div key={tip.id} className="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">
-                      {tip.category}
-                    </span>
-                    <span className="text-xs text-slate-400">Por: {tip.author_name} ({tip.author_role})</span>
-                  </div>
-                  <h3 className="font-bold text-slate-800 text-base">{tip.title}</h3>
-                  <p className="text-slate-600 text-sm leading-relaxed">{tip.description}</p>
+        {/* Cards do Histórico */}
+        <div className="space-y-4">
+          {logs.map((log) => (
+            <div
+              key={log.id}
+              className="bg-white rounded-[2rem] border border-slate-100 p-6 shadow-sm space-y-4"
+            >
+              {/* Linha Superior */}
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="flex items-baseline gap-1.5">
+                  <h4 className="text-base font-black text-slate-900">{log.subject}</h4>
+                  <span className="text-xs text-slate-400 font-medium">
+                    • {log.day_text} ({log.date_formatted})
+                  </span>
                 </div>
-              ))}
-            </div>
-          </div>
-        )}
 
-        {/* ABA 3: RELATÓRIO DO DIA / PAIS */}
-        {activeTab === 'relatorios' && (
-          <div className="space-y-5">
-            <div>
-              <h2 className="text-lg font-black text-slate-800">Resumo Diário da Rotina</h2>
-              <p className="text-xs text-slate-500">Acompanhamento de autonomia e autorregulação</p>
-            </div>
+                {getRegulationBadge(log.regulation)}
+              </div>
 
-            <div className="grid grid-cols-3 gap-3">
-              <div className="p-4 rounded-2xl bg-white border border-indigo-100 text-center shadow-sm">
-                <div className="text-2xl font-black text-indigo-600">{dailyLogs.length}</div>
-                <div className="text-[11px] text-slate-500 font-medium mt-1">Aulas Registradas</div>
-              </div>
-              <div className="p-4 rounded-2xl bg-white border border-emerald-100 text-center shadow-sm">
-                <div className="text-2xl font-black text-emerald-600">
-                  {dailyLogs.filter(l => l.prompt_level === 'independente').length}
-                </div>
-                <div className="text-[11px] text-slate-500 font-medium mt-1">Independentes</div>
-              </div>
-              <div className="p-4 rounded-2xl bg-white border border-amber-100 text-center shadow-sm">
-                <div className="text-2xl font-black text-amber-500">
-                  {dailyLogs.filter(l => l.regulation_state === 'regulado').length}
-                </div>
-                <div className="text-[11px] text-slate-500 font-medium mt-1">Em Autorregulação</div>
-              </div>
-            </div>
-
-            {/* Linha do Tempo */}
-            <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-3">
-              <h3 className="font-bold text-slate-800 text-sm">Linha do Tempo Escolar</h3>
-              {dailyLogs.length === 0 ? (
-                <p className="text-center py-6 text-xs text-slate-400">Nenhum registro lançado para hoje ainda.</p>
-              ) : (
-                dailyLogs.map((log, i) => (
-                  <div key={i} className="p-3 rounded-xl bg-slate-50 border border-slate-100 text-xs space-y-1">
-                    <div className="flex justify-between font-bold text-slate-800">
-                      <span>{log.subject_name}</span>
-                      <span className="text-indigo-600">{log.prompt_level}</span>
-                    </div>
-                    {log.observations && <p className="text-slate-600">Obs: {log.observations}</p>}
-                    {log.sensory_notes && <p className="text-amber-700 bg-amber-50 p-1.5 rounded">⚠️ {log.sensory_notes}</p>}
-                  </div>
-                ))
+              {/* Anotação em Aspas */}
+              {log.notes && (
+                <p className="text-slate-800 text-sm font-medium leading-relaxed italic bg-slate-50/70 p-3.5 rounded-2xl border border-slate-100">
+                  "{log.notes}"
+                </p>
               )}
+
+              {/* Gatilhos */}
+              {log.triggers && log.triggers.length > 0 && (
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase">Gatilhos:</span>
+                  {log.triggers.map((tr) => (
+                    <span key={tr} className="text-[11px] bg-amber-50 text-amber-800 font-semibold px-2 py-0.5 rounded-md">
+                      ⚠️ {tr}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* Conclusão e Estrelas de Engajamento */}
+              <div className="flex items-center gap-2 text-xs font-semibold text-slate-600 pt-1">
+                <span>Conseguiu fazer exercícios: <b>{log.completed}</b></span>
+                <span>|</span>
+                <span className="flex items-center gap-1">
+                  Engajamento:
+                  <span className="inline-flex text-[#F59E0B]">
+                    {Array.from({ length: log.engagement }).map((_, i) => (
+                      <span key={i}>⭐</span>
+                    ))}
+                  </span>
+                </span>
+              </div>
+
+              {/* Rodapé com Autor */}
+              <div className="text-xs text-slate-400 italic pt-1">
+                Por: {log.author_name} ({log.author_role})
+              </div>
             </div>
-          </div>
-        )}
+          ))}
+        </div>
       </main>
-
-      {/* MODAL DO AT: REGISTRO DA AULA */}
-      {selectedSlot && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white w-full max-w-lg rounded-3xl p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center border-b pb-2">
-              <h3 className="font-black text-slate-800">{selectedSlot.icon} {selectedSlot.subject}</h3>
-              <button onClick={() => setSelectedSlot(null)} className="text-slate-400 font-bold">✕</button>
-            </div>
-
-            <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">Nível de Ajuda do AT (Prompt Hierarchy):</label>
-              <select
-                value={logForm.prompt_level}
-                onChange={(e) => setLogForm({ ...logForm, prompt_level: e.target.value })}
-                className="w-full p-2.5 rounded-xl border border-slate-200 text-xs bg-slate-50 font-medium"
-              >
-                <option value="independente">🌟 Independente (Sem dicas)</option>
-                <option value="dica_verbal">🗣️ Dica Verbal / Lembrete</option>
-                <option value="gestual_visual">👉 Pista Visual / Apontamento</option>
-                <option value="ajuda_fisica_parcial">🤝 Ajuda Física Parcial</option>
-                <option value="ajuda_fisica_total">🤲 Ajuda Física Total (Mão sobre mão)</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">Estado Sensorial / Regulação:</label>
-              <select
-                value={logForm.regulation_state}
-                onChange={(e) => setLogForm({ ...logForm, regulation_state: e.target.value })}
-                className="w-full p-2.5 rounded-xl border border-slate-200 text-xs bg-slate-50 font-medium"
-              >
-                <option value="regulado">😊 Regulado / Conectado</option>
-                <option value="alerta">👀 Alerta / Atento</option>
-                <option value="agitado">⚡ Agitado / Hiperativo</option>
-                <option value="hipoativo">😴 Hipoativo / Desatento</option>
-                <option value="sobrecarregado">⚠️ Sobrecarga / Desregulado</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">Gatilhos Sensoriais (se houver):</label>
-              <input
-                type="text"
-                placeholder="Ex: Barulho no corredor, lâmpada piscando..."
-                value={logForm.sensory_notes}
-                onChange={(e) => setLogForm({ ...logForm, sensory_notes: e.target.value })}
-                className="w-full p-2.5 rounded-xl border border-slate-200 text-xs bg-slate-50"
-              />
-            </div>
-
-            <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">Observações do AT:</label>
-              <textarea
-                rows={2}
-                placeholder="Adaptações feitas na atividade, interesse demonstrado..."
-                value={logForm.observations}
-                onChange={(e) => setLogForm({ ...logForm, observations: e.target.value })}
-                className="w-full p-2.5 rounded-xl border border-slate-200 text-xs bg-slate-50"
-              />
-            </div>
-
-            <button
-              onClick={handleSaveLog}
-              className="w-full py-3.5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md"
-            >
-              Salvar Registro da Aula
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL TERAPEUTAS: NOVA DIRETRIZ */}
-      {showTipModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white w-full max-w-lg rounded-3xl p-6 shadow-2xl space-y-4">
-            <div className="flex justify-between items-center border-b pb-2">
-              <h3 className="font-black text-slate-800">Nova Estratégia Terapêutica</h3>
-              <button onClick={() => setShowTipModal(false)} className="text-slate-400 font-bold">✕</button>
-            </div>
-
-            <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">Título da Estratégia:</label>
-              <input
-                type="text"
-                placeholder="Ex: Acomodação para transição de aula"
-                value={newTip.title}
-                onChange={(e) => setNewTip({ ...newTip, title: e.target.value })}
-                className="w-full p-2.5 rounded-xl border border-slate-200 text-xs bg-slate-50"
-              />
-            </div>
-
-            <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">Categoria:</label>
-              <select
-                value={newTip.category}
-                onChange={(e) => setNewTip({ ...newTip, category: e.target.value })}
-                className="w-full p-2.5 rounded-xl border border-slate-200 text-xs bg-slate-50 font-medium"
-              >
-                <option value="pedagogico">Pedagógico & Adaptação</option>
-                <option value="sensorial">Sensorial & Acomodação</option>
-                <option value="comportamental">Comportamental & Manejo</option>
-                <option value="comunicacao">Comunicação & Fono</option>
-                <option value="social">Interação Social</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">Passo a Passo / Instrução Prática:</label>
-              <textarea
-                rows={4}
-                placeholder="Oriente como o AT e o professor devem intervir..."
-                value={newTip.description}
-                onChange={(e) => setNewTip({ ...newTip, description: e.target.value })}
-                className="w-full p-2.5 rounded-xl border border-slate-200 text-xs bg-slate-50"
-              />
-            </div>
-
-            <button
-              onClick={handleCreateTip}
-              className="w-full py-3.5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md"
-            >
-              Publicar Diretriz
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

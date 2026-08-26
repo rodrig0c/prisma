@@ -203,7 +203,7 @@ export default function PrismaApp() {
   const [bootError, setBootError] = useState<string | null>(null);
 
   // navegação interna por papel
-  const [screen, setScreen] = useState<'dashboard' | 'schedule-editor' | 'guidelines' | 'weekly-report' | 'switch-patient' | 'add-patient'>('dashboard');
+  const [screen, setScreen] = useState<'dashboard' | 'schedule-editor' | 'guidelines' | 'weekly-report' | 'switch-patient' | 'add-patient' | 'patient-info'>('dashboard');
 
   const activePatient = useMemo(
     () => patients.find((p) => p.id === activePatientId) || null,
@@ -343,7 +343,13 @@ export default function PrismaApp() {
         canGoBack={screen !== 'dashboard'}
         onBack={() => setScreen('dashboard')}
         onSwitchPatient={() => setScreen('switch-patient')}
+        onOpenPatientInfo={() => setScreen('patient-info')}
         onSignOut={handleSignOut}
+        onRoleChange={async (newRole) => {
+          await supabase.from('profiles').update({ role: newRole }).eq('id', profile.id);
+          setProfile({ ...profile, role: newRole });
+          setScreen('dashboard');
+        }}
       />
 
       <main className="max-w-xl mx-auto p-4 sm:p-6 space-y-6 print:max-w-full">
@@ -362,6 +368,14 @@ export default function PrismaApp() {
             embedded
             onDone={async () => { await refreshPatients(); setScreen('dashboard'); }}
             onCancel={() => setScreen('switch-patient')}
+          />
+        )}
+
+        {screen === 'patient-info' && (
+          <PatientInfoScreen
+            patient={activePatient}
+            onUpdated={refreshPatients}
+            onClose={() => setScreen('dashboard')}
           />
         )}
 
@@ -820,6 +834,201 @@ function AddPatientPanel({
 // =============================================================================
 // SELETOR DE CRIANÇA (trocar aluno)
 // =============================================================================
+// =============================================================================
+// PERFIL DA CRIANÇA: dados básicos editáveis + equipe vinculada (pais/AT/terapeuta/professor)
+// =============================================================================
+interface LinkedMember {
+  role_in_patient: string;
+  profiles: { id: string; full_name: string | null; email: string; role: ProfileRole | null; specialty: string | null; avatar_url: string | null } | null;
+}
+
+function PatientInfoScreen({
+  patient, onUpdated, onClose
+}: {
+  patient: Patient;
+  onUpdated: () => Promise<void>;
+  onClose: () => void;
+}) {
+  const [editMode, setEditMode] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [members, setMembers] = useState<LinkedMember[]>([]);
+  const [loadingMembers, setLoadingMembers] = useState(true);
+
+  const [form, setForm] = useState({
+    full_name: patient.full_name,
+    birth_date: patient.birth_date || '',
+    school_name: patient.school_name || '',
+    grade_level: patient.grade_level || '',
+    support_level: patient.support_level || 'Nível 1 (Leve)'
+  });
+
+  const loadMembers = useCallback(async () => {
+    setLoadingMembers(true);
+    const { data } = await supabase
+      .from('patient_members')
+      .select('role_in_patient, profiles(id, full_name, email, role, specialty, avatar_url)')
+      .eq('patient_id', patient.id);
+    setMembers((data as any) || []);
+    setLoadingMembers(false);
+  }, [patient.id]);
+
+  useEffect(() => { loadMembers(); }, [loadMembers]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    await supabase.from('patients').update({
+      full_name: form.full_name.trim(),
+      birth_date: form.birth_date || null,
+      school_name: form.school_name || null,
+      grade_level: form.grade_level || null,
+      support_level: form.support_level
+    }).eq('id', patient.id);
+    setSaving(false);
+    setEditMode(false);
+    await onUpdated();
+  };
+
+  const grouped = useMemo(() => {
+    const byRole: Record<ProfileRole, LinkedMember[]> = { pais: [], at_escola: [], terapeuta_clinico: [], professor: [] };
+    members.forEach((m) => {
+      const r = m.profiles?.role;
+      if (r && byRole[r]) byRole[r].push(m);
+    });
+    return byRole;
+  }, [members]);
+
+  const age = calcAge(patient.birth_date);
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between px-1">
+        <h3 className="text-lg font-black text-slate-900">Perfil da criança</h3>
+        {!editMode && (
+          <button onClick={() => setEditMode(true)} className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-700 transition">
+            <Pencil className="w-3.5 h-3.5" /> Editar
+          </button>
+        )}
+      </div>
+
+      <div className="bg-white rounded-[2rem] border border-slate-100 p-6 shadow-sm space-y-5">
+        <div className="flex flex-col items-center gap-2">
+          <ChildAvatar patient={patient} size={80} editable />
+          {!editMode && (
+            <div className="text-center">
+              <p className="font-black text-slate-900 text-lg">{patient.full_name}</p>
+              <p className="text-xs text-slate-500 mt-0.5">
+                {age !== null ? `${age} anos` : 'Idade não informada'}
+                {patient.grade_level ? ` • ${patient.grade_level}` : ''}
+              </p>
+            </div>
+          )}
+        </div>
+
+        {!editMode ? (
+          <div className="space-y-3 pt-2 border-t border-slate-100">
+            <InfoRow label="Escola" value={patient.school_name || '—'} />
+            <InfoRow label="Data de nascimento" value={patient.birth_date ? new Date(patient.birth_date + 'T00:00:00').toLocaleDateString('pt-BR') : '—'} />
+            <InfoRow label="Nível de suporte" value={patient.support_level || '—'} />
+            <InfoRow label="Código de compartilhamento" value={patient.code} copyable />
+          </div>
+        ) : (
+          <div className="space-y-4 pt-2 border-t border-slate-100">
+            <div>
+              <label className="text-[10px] font-black uppercase text-slate-500 block mb-1.5 ml-1">Nome completo</label>
+              <input value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} className="w-full p-3.5 rounded-2xl border border-slate-200 text-sm focus:outline-indigo-600" />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-[10px] font-black uppercase text-slate-500 block mb-1.5 ml-1">Nascimento</label>
+                <input type="date" value={form.birth_date} onChange={(e) => setForm({ ...form, birth_date: e.target.value })} className="w-full p-3 rounded-2xl border border-slate-200 text-xs focus:outline-indigo-600" />
+              </div>
+              <div>
+                <label className="text-[10px] font-black uppercase text-slate-500 block mb-1.5 ml-1">Série / Ano</label>
+                <input value={form.grade_level} onChange={(e) => setForm({ ...form, grade_level: e.target.value })} className="w-full p-3 rounded-2xl border border-slate-200 text-xs focus:outline-indigo-600" />
+              </div>
+            </div>
+            <div>
+              <label className="text-[10px] font-black uppercase text-slate-500 block mb-1.5 ml-1">Escola</label>
+              <input value={form.school_name} onChange={(e) => setForm({ ...form, school_name: e.target.value })} className="w-full p-3.5 rounded-2xl border border-slate-200 text-sm focus:outline-indigo-600" />
+            </div>
+            <div>
+              <label className="text-[10px] font-black uppercase text-slate-500 block mb-1.5 ml-1">Nível de suporte (DSM-5)</label>
+              <select value={form.support_level} onChange={(e) => setForm({ ...form, support_level: e.target.value as any })} className="w-full p-3.5 rounded-2xl border border-slate-200 bg-white text-xs font-bold focus:outline-indigo-600">
+                {SUPPORT_LEVELS.map((lvl) => <option key={lvl} value={lvl!}>{lvl}</option>)}
+              </select>
+            </div>
+
+            <div className="flex gap-3 pt-1">
+              <button onClick={() => setEditMode(false)} className="flex-1 py-3.5 rounded-2xl border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-50 transition">
+                Cancelar
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={saving || !form.full_name.trim()}
+                className="flex-[2] py-3.5 rounded-2xl bg-[#4F46E5] hover:bg-[#4338CA] disabled:bg-slate-300 text-white font-bold text-xs shadow-md transition active:scale-[0.98] flex items-center justify-center gap-2"
+              >
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Salvar alterações'}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-3">
+        <h4 className="text-xs font-black uppercase tracking-wide text-slate-500 px-1">Equipe vinculada</h4>
+
+        {loadingMembers && <div className="py-8 flex justify-center"><Loader2 className="w-5 h-5 text-indigo-500 animate-spin" /></div>}
+
+        {!loadingMembers && members.length === 0 && (
+          <div className="bg-white rounded-[2rem] border border-slate-100 p-6 text-center">
+            <p className="text-xs text-slate-500">Ninguém mais entrou com o código ainda. Compartilhe <b>{patient.code}</b> com a família, escola e terapeutas.</p>
+          </div>
+        )}
+
+        {!loadingMembers && members.length > 0 && (Object.keys(ROLE_LABELS) as ProfileRole[]).map((r) => {
+          const list = grouped[r];
+          if (!list || list.length === 0) return null;
+          const meta = ROLE_LABELS[r];
+          return (
+            <div key={r} className="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm space-y-2.5">
+              <span className="text-[10px] font-black uppercase tracking-wide" style={{ color: meta.color }}>{meta.emoji} {meta.label}</span>
+              {list.map((m, i) => (
+                <div key={i} className="flex items-center gap-3">
+                  {m.profiles?.avatar_url ? (
+                    <img src={m.profiles.avatar_url} alt="" className="w-9 h-9 rounded-full object-cover" />
+                  ) : (
+                    <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center"><UserCheck className="w-4 h-4 text-slate-400" /></div>
+                  )}
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-slate-800 truncate">{m.profiles?.full_name || 'Sem nome'}</p>
+                    <p className="text-[10px] text-slate-400 truncate">{m.profiles?.specialty || m.profiles?.email}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function InfoRow({ label, value, copyable }: { label: string; value: string; copyable?: boolean }) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <span className="text-xs font-semibold text-slate-500">{label}</span>
+      <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5 text-right">
+        {value}
+        {copyable && value !== '—' && (
+          <button onClick={() => navigator.clipboard?.writeText(value)} className="text-slate-400 hover:text-indigo-600 transition">
+            <Copy className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </span>
+    </div>
+  );
+}
+
 function SwitchPatientScreen({
   patients, activePatientId, onSelect, onAddNew
 }: {
@@ -921,17 +1130,20 @@ function ChildAvatar({
 // CABEÇALHO PERSISTENTE (nome do usuário, papel, criança, ações)
 // =============================================================================
 function AppHeader({
-  profile, patient, canGoBack, onBack, onSwitchPatient, onSignOut
+  profile, patient, canGoBack, onBack, onSwitchPatient, onOpenPatientInfo, onSignOut, onRoleChange
 }: {
   profile: Profile;
   patient: Patient;
   canGoBack: boolean;
   onBack: () => void;
   onSwitchPatient: () => void;
+  onOpenPatientInfo: () => void;
   onSignOut: () => void;
+  onRoleChange: (role: ProfileRole) => void | Promise<void>;
 }) {
   const age = calcAge(patient.birth_date);
   const roleMeta = profile.role ? ROLE_LABELS[profile.role] : null;
+  const [showRolePicker, setShowRolePicker] = useState(false);
 
   return (
     <header className="bg-white border-b border-slate-100 sticky top-0 z-10 shadow-sm print:hidden">
@@ -944,12 +1156,12 @@ function AppHeader({
               </button>
             )}
             <ChildAvatar patient={patient} size={44} editable={profile.role === 'at_escola' || profile.role === 'pais'} />
-            <div className="min-w-0">
+            <button onClick={onOpenPatientInfo} className="min-w-0 text-left active:opacity-70 transition">
               <h2 className="font-black text-slate-900 text-base leading-tight truncate">{patient.full_name}</h2>
               <p className="text-[11px] text-slate-400 font-medium truncate">
-                {age !== null ? `${age} anos • ` : ''}{patient.grade_level || patient.school_name || 'Perfil da criança'}
+                {age !== null ? `${age} anos • ` : ''}{patient.grade_level || patient.school_name || 'Toque para ver o perfil'}
               </p>
-            </div>
+            </button>
           </div>
 
           <button
@@ -960,7 +1172,7 @@ function AppHeader({
           </button>
         </div>
 
-        <div className="flex items-center justify-between bg-slate-50 rounded-2xl px-3 py-2">
+        <div className="flex items-center justify-between bg-slate-50 rounded-2xl px-3 py-2 relative">
           <div className="flex items-center gap-2 min-w-0">
             {profile.avatar_url ? (
               <img src={profile.avatar_url} alt="" className="w-6 h-6 rounded-full object-cover" />
@@ -970,16 +1182,39 @@ function AppHeader({
             <span className="text-xs font-bold text-slate-700 truncate">{profile.full_name}</span>
           </div>
           {roleMeta && (
-            <span
-              className="text-[10px] font-black uppercase tracking-wide px-2 py-1 rounded-lg shrink-0"
+            <button
+              onClick={() => setShowRolePicker((v) => !v)}
+              title="Trocar papel (modo de teste)"
+              className="text-[10px] font-black uppercase tracking-wide px-2 py-1 rounded-lg shrink-0 hover:opacity-75 transition active:scale-95"
               style={{ color: roleMeta.color, background: `${roleMeta.color}15` }}
             >
               {roleMeta.emoji} {roleMeta.short}
-            </span>
+            </button>
           )}
           <button onClick={onSignOut} className="text-slate-400 hover:text-rose-600 transition shrink-0 ml-2" title="Sair">
             <LogOut className="w-4 h-4" />
           </button>
+
+          {showRolePicker && (
+            <div className="absolute right-0 top-full mt-2 bg-white rounded-2xl border border-slate-200 shadow-xl p-2 z-20 w-64">
+              <p className="text-[10px] font-black uppercase text-slate-400 px-2 py-1">Ver como (modo de teste)</p>
+              {(Object.keys(ROLE_LABELS) as ProfileRole[]).map((r) => {
+                const meta = ROLE_LABELS[r];
+                const active = profile.role === r;
+                return (
+                  <button
+                    key={r}
+                    onClick={async () => { setShowRolePicker(false); await onRoleChange(r); }}
+                    className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-xl text-xs font-bold transition ${active ? '' : 'hover:bg-slate-50'}`}
+                    style={active ? { background: `${meta.color}15`, color: meta.color } : { color: '#334155' }}
+                  >
+                    <span>{meta.emoji}</span> {meta.label}
+                    {active && <CheckCircle2 className="w-3.5 h-3.5 ml-auto" />}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
     </header>

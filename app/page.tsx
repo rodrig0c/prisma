@@ -323,12 +323,12 @@ export default function PrismaApp() {
           </div>
 
           <div>
-      
+            <h1 className="text-3xl font-black text-slate-900 tracking-tight">Prisma</h1>
             <p className="text-[11px] font-black uppercase tracking-widest text-indigo-600 mt-1">
-              Conexão Escolar • Terapia • Família 
+              Conexão Escolar • Terapia ABA • Família
             </p>
             <p className="text-slate-500 text-xs mt-3 leading-relaxed">
-              Plataforma unificada para registro de mediação escolar e acompanhamento terapêutico.
+              Plataforma unificada para registro de mediação escolar, hierarquia de dicas, autorregulação e acompanhamento terapêutico.
             </p>
           </div>
 

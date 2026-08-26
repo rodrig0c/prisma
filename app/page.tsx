@@ -5,10 +5,10 @@ import { supabase } from '@/lib/supabaseClient';
 import { 
   BookOpen, Sparkles, BarChart3, LogOut, CheckCircle2, 
   Clock, MessageSquarePlus, ChevronRight, UserPlus, KeyRound, 
-  Users, Copy, Check, ArrowRight
+  Users, AlertTriangle, Lightbulb
 } from 'lucide-react';
 
-export default function PrismaApp() {
+export default function MultitenantApp() {
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -16,7 +16,6 @@ export default function PrismaApp() {
   // Estados do Paciente
   const [patient, setPatient] = useState<any>(null);
   const [patientCodeInput, setPatientCodeInput] = useState('');
-  const [copied, setCopied] = useState(false);
   const [flowState, setFlowState] = useState<'SELECT_ROLE' | 'CONNECT_PATIENT' | 'CREATE_PATIENT' | 'APP'>('SELECT_ROLE');
 
   // Cadastro de Novo Paciente
@@ -80,6 +79,7 @@ export default function PrismaApp() {
 
     if (prof) {
       setProfile(prof);
+      // Verificar se o usuário já tem um paciente vinculado
       const { data: member } = await supabase
         .from('patient_members')
         .select('patient_id, patients(*)')
@@ -100,14 +100,6 @@ export default function PrismaApp() {
     }
   };
 
-  const handleSignOut = async () => {
-    await supabase.auth.signOut();
-    setUser(null);
-    setProfile(null);
-    setPatient(null);
-    setFlowState('SELECT_ROLE');
-  };
-
   const handleGoogleLogin = async () => {
     await supabase.auth.signInWithOAuth({
       provider: 'google',
@@ -120,7 +112,7 @@ export default function PrismaApp() {
     const newProf = {
       id: user.id,
       email: user.email,
-      full_name: user.user_metadata?.full_name || 'Usuário Prisma',
+      full_name: user.user_metadata?.full_name || 'Profissional/Responsável',
       avatar_url: user.user_metadata?.avatar_url,
       role,
       specialty
@@ -133,6 +125,7 @@ export default function PrismaApp() {
     }
   };
 
+  // VINCULAR POR CÓDIGO EXISTENTE
   const handleConnectByCode = async () => {
     if (!patientCodeInput.trim()) return;
     const cleanCode = patientCodeInput.trim().toUpperCase();
@@ -144,7 +137,7 @@ export default function PrismaApp() {
       .single();
 
     if (error || !foundPatient) {
-      alert('Código não encontrado. Verifique com a família.');
+      alert('Código não encontrado. Verifique com o responsável pelo aluno.');
       return;
     }
 
@@ -158,9 +151,11 @@ export default function PrismaApp() {
     setFlowState('APP');
   };
 
+  // CADASTRAR NOVO ALUNO/PACIENTE (GERA CÓDIGO ALEATÓRIO)
   const handleCreatePatient = async () => {
     if (!newPatientForm.full_name.trim()) return;
 
+    // Gerar Código Amigável (ex: ROD-8492)
     const prefix = newPatientForm.full_name.slice(0, 3).toUpperCase();
     const randomNum = Math.floor(1000 + Math.random() * 9000);
     const generatedCode = `${prefix}-${randomNum}`;
@@ -180,12 +175,14 @@ export default function PrismaApp() {
       .single();
 
     if (!error && createdPatient) {
+      // Vincula o criador como membro
       await supabase.from('patient_members').insert({
         patient_id: createdPatient.id,
         profile_id: user.id,
         role_in_patient: profile?.specialty || 'Responsável'
       });
 
+      // Cria a grade semanal padrão do aluno
       await createDefaultSchedule(createdPatient.id);
 
       setPatient(createdPatient);
@@ -195,12 +192,12 @@ export default function PrismaApp() {
 
   const createDefaultSchedule = async (patientId: string) => {
     const defaultSlots = [
-      { day_of_week: 1, start_time: '07:30', end_time: '08:20', subject: 'Acolhimento / Rotina', icon: '☀️' },
-      { day_of_week: 1, start_time: '08:20', end_time: '09:10', subject: 'Português (Alfabetização)', icon: '📖' },
-      { day_of_week: 1, start_time: '09:10', end_time: '09:30', subject: 'Lanche & Socialização', icon: '🥪' },
-      { day_of_week: 1, start_time: '09:30', end_time: '10:20', subject: 'Matemática Estruturada', icon: '🔢' },
-      { day_of_week: 1, start_time: '10:20', end_time: '11:10', subject: 'Educação Física / Movimento', icon: '⚽' },
-      { day_of_week: 1, start_time: '11:10', end_time: '12:00', subject: 'Artes & Expressão', icon: '🎨' }
+      { day_of_week: 1, start_time: '07:30', end_time: '08:20', subject: 'Acolhimento / Roda', icon: '☀️' },
+      { day_of_week: 1, start_time: '08:20', end_time: '09:10', subject: 'Língua Portuguesa', icon: '📖' },
+      { day_of_week: 1, start_time: '09:10', end_time: '09:30', subject: 'Lanche / Recreio', icon: '🥪' },
+      { day_of_week: 1, start_time: '09:30', end_time: '10:20', subject: 'Matemática', icon: '🔢' },
+      { day_of_week: 1, start_time: '10:20', end_time: '11:10', subject: 'Educação Física', icon: '⚽' },
+      { day_of_week: 1, start_time: '11:10', end_time: '12:00', subject: 'Artes / Expressão', icon: '🎨' }
     ];
 
     const slotsToInsert = defaultSlots.map(s => ({ ...s, patient_id: patientId }));
@@ -277,8 +274,8 @@ export default function PrismaApp() {
       description: newTip.description,
       target_audience: newTip.target_audience,
       author_id: user.id,
-      author_name: profile?.full_name || 'Terapeuta',
-      author_role: profile?.specialty || 'Terapeuta ABA'
+      author_name: profile?.full_name || 'Profissional',
+      author_role: profile?.specialty || 'Terapeuta'
     });
 
     if (!error) {
@@ -288,54 +285,36 @@ export default function PrismaApp() {
     }
   };
 
-  const copyPatientCode = () => {
-    if (patient?.code) {
-      navigator.clipboard.writeText(patient.code);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
-  };
-
   if (loading) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center text-white">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-          <p className="font-bold text-slate-500 text-xs tracking-wider uppercase">Carregando...</p>
+          <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+          <p className="font-semibold text-slate-300">Carregando Sistema Multidisciplinar...</p>
         </div>
       </div>
     );
   }
 
-  // 1. TELA DE LOGIN (LOGO GRANDE, FUNDO BRANCO INTEGRADO, SEM NOME 'PRISMA' EM PRETO)
+  // TELA 1: LOGIN COM GOOGLE
   if (!user) {
     return (
-      <main className="min-h-screen bg-white flex flex-col justify-center items-center px-6 py-10 text-center">
-        <div className="max-w-md w-full flex flex-col items-center">
-          
-          {/* LOGO AMPLIADO */}
-          <div className="w-full flex justify-center mb-6">
-            <img 
-              src="/logo.png" 
-              alt="Prisma" 
-              className="w-full max-w-[340px] sm:max-w-[420px] h-auto object-contain mix-blend-multiply drop-shadow-none"
-            />
+      <main className="min-h-screen bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-white/95 backdrop-blur-md rounded-3xl shadow-2xl p-8 text-center border border-white/30">
+          <div className="w-20 h-20 mx-auto mb-4 rounded-3xl bg-indigo-50 flex items-center justify-center text-4xl shadow-inner border border-indigo-100">
+            🧩
           </div>
+          <h1 className="text-2xl font-black text-slate-800">Plataforma Inclusiva</h1>
+          <p className="text-xs uppercase tracking-wider font-bold text-indigo-600 mt-1">
+            Mediação Escolar • Terapia • Família
+          </p>
+          <p className="text-slate-600 text-sm mt-3 leading-relaxed">
+            Acompanhamento integrado de rotina, autorregulação sensorial e diretrizes pedagógicas para crianças no espectro autista.
+          </p>
 
-          {/* SUBTÍTULOS DIRETOS */}
-          <div className="space-y-2 mb-8">
-            <p className="text-xs font-black uppercase tracking-widest text-indigo-600">
-              CONEXÃO ESCOLAR • TERAPIA ABA • FAMÍLIA
-            </p>
-            <p className="text-slate-500 text-xs sm:text-sm leading-relaxed max-w-xs mx-auto">
-              Plataforma unificada para registro de mediação escolar, hierarquia de dicas e acompanhamento terapêutico.
-            </p>
-          </div>
-
-          {/* BOTÃO DE LOGIN GOOGLE */}
           <button
             onClick={handleGoogleLogin}
-            className="w-full max-w-sm py-4 px-6 bg-white hover:bg-slate-50 border-2 border-slate-200 hover:border-slate-300 text-slate-700 font-bold rounded-2xl shadow-sm hover:shadow transition flex items-center justify-center gap-3 active:scale-[0.98]"
+            className="mt-8 w-full py-4 px-6 bg-white hover:bg-slate-50 border-2 border-slate-200 text-slate-700 font-bold rounded-2xl shadow-sm hover:shadow transition flex items-center justify-center gap-3 active:scale-95"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24">
               <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -343,156 +322,131 @@ export default function PrismaApp() {
               <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
               <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
             </svg>
-            Entrar com conta Google
+            Entrar com o Google
           </button>
         </div>
       </main>
     );
   }
 
-  // 2. SELEÇÃO DE PAPEL (COM BOTÃO SAIR)
+  // TELA 2: DEFINIÇÃO DE PAPEL DO USUÁRIO
   if (flowState === 'SELECT_ROLE') {
     return (
-      <main className="min-h-screen bg-white flex flex-col justify-between p-6">
-        <div className="w-full max-w-md mx-auto flex justify-end">
-          <button
-            onClick={handleSignOut}
-            className="text-xs font-bold text-slate-500 hover:text-red-600 flex items-center gap-1.5 py-1.5 px-3 rounded-lg hover:bg-slate-50 transition"
-          >
-            <LogOut className="w-4 h-4" />
-            <span>Sair da conta</span>
-          </button>
-        </div>
-
-        <div className="max-w-md w-full mx-auto my-auto space-y-6">
-          <div className="text-center">
-            <h2 className="text-2xl font-black text-slate-900">Como você atua?</h2>
-            <p className="text-slate-500 text-xs mt-1">Selecione seu papel na equipe multidisciplinar:</p>
-          </div>
+      <main className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-white rounded-3xl shadow-xl p-6 sm:p-8">
+          <h2 className="text-2xl font-black text-slate-800 text-center">Identificação</h2>
+          <p className="text-slate-500 text-xs text-center mt-1 mb-6">Como você atua na equipe multidisciplinar?</p>
 
           <div className="space-y-3">
             <button
               onClick={() => handleSelectRole('at_escola', 'Acompanhante Terapêutico (AT)')}
-              className="w-full p-4 rounded-2xl border-2 border-indigo-100 hover:border-indigo-500 bg-indigo-50/40 flex items-center gap-4 text-left transition active:scale-[0.98]"
+              className="w-full p-4 rounded-2xl border-2 border-indigo-100 hover:border-indigo-500 bg-indigo-50/30 flex items-center gap-4 text-left transition"
             >
-              <div className="w-12 h-12 rounded-2xl bg-indigo-600 text-white flex items-center justify-center text-2xl shadow-sm shrink-0">🎒</div>
+              <span className="text-3xl">🎒</span>
               <div>
                 <div className="font-bold text-slate-800 text-sm">Acompanhante Terapêutico (AT)</div>
-                <div className="text-xs text-slate-500">Registro de aulas, rotina e níveis de suporte</div>
+                <div className="text-xs text-slate-500">Mediação em sala de aula e apoio comportamental</div>
               </div>
             </button>
 
             <button
-              onClick={() => handleSelectRole('terapeuta_clinico', 'Terapeuta ABA / TO / Fono')}
-              className="w-full p-4 rounded-2xl border-2 border-teal-100 hover:border-teal-500 bg-teal-50/40 flex items-center gap-4 text-left transition active:scale-[0.98]"
+              onClick={() => handleSelectRole('terapeuta_clinico', 'Terapeuta (TO / Fono / Psico)')}
+              className="w-full p-4 rounded-2xl border-2 border-teal-100 hover:border-teal-500 bg-teal-50/30 flex items-center gap-4 text-left transition"
             >
-              <div className="w-12 h-12 rounded-2xl bg-teal-600 text-white flex items-center justify-center text-2xl shadow-sm shrink-0">🩺</div>
+              <span className="text-3xl">🩺</span>
               <div>
-                <div className="font-bold text-slate-800 text-sm">Terapeuta Clínico (ABA / TO / Fono)</div>
-                <div className="text-xs text-slate-500">Orientações de manejo e supervisão clínica</div>
+                <div className="font-bold text-slate-800 text-sm">Terapeuta Clínico(a)</div>
+                <div className="text-xs text-slate-500">Psicólogo, Terapeuta Ocupacional, Fonoaudiólogo</div>
               </div>
             </button>
 
             <button
               onClick={() => handleSelectRole('pais', 'Responsável')}
-              className="w-full p-4 rounded-2xl border-2 border-amber-100 hover:border-amber-500 bg-amber-50/40 flex items-center gap-4 text-left transition active:scale-[0.98]"
+              className="w-full p-4 rounded-2xl border-2 border-amber-100 hover:border-amber-500 bg-amber-50/30 flex items-center gap-4 text-left transition"
             >
-              <div className="w-12 h-12 rounded-2xl bg-amber-500 text-white flex items-center justify-center text-2xl shadow-sm shrink-0">🏡</div>
+              <span className="text-3xl">🏡</span>
               <div>
-                <div className="font-bold text-slate-800 text-sm">Pais / Responsáveis</div>
-                <div className="text-xs text-slate-500">Acompanhamento diário e relatórios da evolução</div>
+                <div className="font-bold text-slate-800 text-sm">Pai / Mãe / Responsável</div>
+                <div className="text-xs text-slate-500">Acompanhamento geral e relatórios diários</div>
               </div>
             </button>
 
             <button
-              onClick={() => handleSelectRole('professor', 'Professor(a) Regente')}
-              className="w-full p-4 rounded-2xl border-2 border-pink-100 hover:border-pink-500 bg-pink-50/40 flex items-center gap-4 text-left transition active:scale-[0.98]"
+              onClick={() => handleSelectRole('professor', 'Professor(a) Escolar')}
+              className="w-full p-4 rounded-2xl border-2 border-pink-100 hover:border-pink-500 bg-pink-50/30 flex items-center gap-4 text-left transition"
             >
-              <div className="w-12 h-12 rounded-2xl bg-pink-600 text-white flex items-center justify-center text-2xl shadow-sm shrink-0">👩🏻‍🏫</div>
+              <span className="text-3xl">👩🏻‍🏫</span>
               <div>
-                <div className="font-bold text-slate-800 text-sm">Professor(a) / Escola</div>
-                <div className="text-xs text-slate-500">Acesso a adaptações pedagógicas e rotina</div>
+                <div className="font-bold text-slate-800 text-sm">Professor(a) Regente / AEE</div>
+                <div className="text-xs text-slate-500">Adaptações pedagógicas e suporte em grupo</div>
               </div>
             </button>
           </div>
         </div>
-
-        <div className="h-6"></div>
       </main>
     );
   }
 
-  // 3. CONECTAR VIA CÓDIGO
+  // TELA 3: ESCOLHA ENTRE INSERIR CÓDIGO OU CADASTRAR NOVO ALUNO
   if (flowState === 'CONNECT_PATIENT') {
     return (
-      <main className="min-h-screen bg-white flex flex-col justify-between p-6">
-        <div className="w-full max-w-md mx-auto flex justify-end">
-          <button
-            onClick={handleSignOut}
-            className="text-xs font-bold text-slate-500 hover:text-red-600 flex items-center gap-1.5 py-1.5 px-3 rounded-lg hover:bg-slate-50 transition"
-          >
-            <LogOut className="w-4 h-4" />
-            <span>Sair da conta</span>
-          </button>
-        </div>
-
-        <div className="max-w-md w-full mx-auto my-auto space-y-6">
+      <main className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-white rounded-3xl shadow-xl p-6 sm:p-8 space-y-6">
           <div className="text-center">
-            <h2 className="text-2xl font-black text-slate-900">Acessar Aluno</h2>
-            <p className="text-slate-500 text-xs mt-1">Conecte-se a uma criança existente ou cadastre um novo perfil.</p>
+            <h2 className="text-2xl font-black text-slate-800">Conectar Paciente</h2>
+            <p className="text-slate-500 text-xs mt-1">Conecte-se a um aluno existente ou inicie um novo cadastro.</p>
           </div>
 
-          <div className="p-6 rounded-3xl bg-slate-50 border border-slate-200 space-y-4">
+          {/* Opção 1: Digitar Código */}
+          <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
             <div className="flex items-center gap-2 font-bold text-slate-800 text-sm">
               <KeyRound className="w-4 h-4 text-indigo-600" />
               Tenho um Código de Acesso
             </div>
-            
-            <div className="space-y-3">
+            <p className="text-xs text-slate-500">Insira o código fornecido pelos responsáveis:</p>
+            <div className="flex gap-2">
               <input
                 type="text"
-                placeholder="EX: ROD-8492"
+                placeholder="Ex: ROD-7492"
                 value={patientCodeInput}
                 onChange={(e) => setPatientCodeInput(e.target.value.toUpperCase())}
-                className="w-full p-4 rounded-2xl border border-slate-300 bg-white font-mono font-black text-center text-lg tracking-widest uppercase focus:outline-indigo-600 focus:border-indigo-600"
+                className="flex-1 p-3 rounded-xl border border-slate-300 font-mono font-bold uppercase text-center text-sm focus:outline-indigo-500"
               />
               <button
                 onClick={handleConnectByCode}
-                className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white font-bold text-sm rounded-2xl transition flex items-center justify-center gap-2 shadow-sm"
+                className="px-5 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs transition"
               >
-                <span>Conectar</span>
-                <ArrowRight className="w-4 h-4" />
+                Acessar
               </button>
             </div>
           </div>
 
           <div className="relative flex items-center justify-center">
             <div className="border-t border-slate-200 w-full"></div>
-            <span className="bg-white px-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">ou</span>
+            <span className="bg-white px-3 text-xs font-bold text-slate-400 uppercase">ou</span>
           </div>
 
+          {/* Opção 2: Cadastrar Novo Aluno */}
           <button
             onClick={() => setFlowState('CREATE_PATIENT')}
-            className="w-full py-4 rounded-2xl border-2 border-dashed border-indigo-200 hover:border-indigo-400 hover:bg-indigo-50/50 text-indigo-600 font-bold text-xs flex items-center justify-center gap-2 transition"
+            className="w-full p-4 rounded-2xl border-2 border-dashed border-indigo-200 hover:border-indigo-500 hover:bg-indigo-50/50 text-indigo-600 font-bold text-xs flex items-center justify-center gap-2 transition"
           >
             <UserPlus className="w-4 h-4" />
-            Cadastrar Novo Aluno na Plataforma
+            Cadastrar Novo Aluno / Filho na Plataforma
           </button>
         </div>
-
-        <div className="h-6"></div>
       </main>
     );
   }
 
-  // 4. CADASTRO DE NOVO PACIENTE
+  // TELA 4: FORMULÁRIO DE CADASTRO DO NOVO PACIENTE
   if (flowState === 'CREATE_PATIENT') {
     return (
-      <main className="min-h-screen bg-white flex items-center justify-center p-6">
-        <div className="max-w-md w-full bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 space-y-4 shadow-sm">
+      <main className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-white rounded-3xl shadow-xl p-6 sm:p-8 space-y-4">
           <div className="flex items-center justify-between border-b pb-3">
-            <h2 className="text-xl font-black text-slate-900">Cadastrar Aluno</h2>
-            <button onClick={() => setFlowState('CONNECT_PATIENT')} className="text-xs font-bold text-slate-500 hover:text-slate-800">Voltar</button>
+            <h2 className="text-xl font-black text-slate-800">Cadastrar Aluno</h2>
+            <button onClick={() => setFlowState('CONNECT_PATIENT')} className="text-xs font-bold text-slate-400">Voltar</button>
           </div>
 
           <div>
@@ -510,7 +464,7 @@ export default function PrismaApp() {
             <label className="text-xs font-bold text-slate-700 block mb-1">Ano Escolar / Turma:</label>
             <input
               type="text"
-              placeholder="Ex: 2º Ano Fundamental"
+              placeholder="Ex: 2º Ano Fundamental - Manhã"
               value={newPatientForm.grade_level}
               onChange={(e) => setNewPatientForm({ ...newPatientForm, grade_level: e.target.value })}
               className="w-full p-3 rounded-xl border border-slate-200 text-sm bg-slate-50"
@@ -518,10 +472,10 @@ export default function PrismaApp() {
           </div>
 
           <div>
-            <label className="text-xs font-bold text-slate-700 block mb-1">Escola:</label>
+            <label className="text-xs font-bold text-slate-700 block mb-1">Nome da Escola:</label>
             <input
               type="text"
-              placeholder="Ex: Escola Integrar"
+              placeholder="Ex: Colégio Aprender"
               value={newPatientForm.school_name}
               onChange={(e) => setNewPatientForm({ ...newPatientForm, school_name: e.target.value })}
               className="w-full p-3 rounded-xl border border-slate-200 text-sm bg-slate-50"
@@ -543,19 +497,20 @@ export default function PrismaApp() {
 
           <button
             onClick={handleCreatePatient}
-            className="w-full py-3.5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm shadow-sm transition mt-2"
+            className="w-full py-4 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm shadow-md transition mt-2"
           >
-            Gerar Código e Iniciar
+            Gerar Código e Criar Espaço
           </button>
         </div>
       </main>
     );
   }
 
-  // 5. PAINEL PRINCIPAL
+  // TELA 5: PAINEL PRINCIPAL DO PACIENTE SELECIONADO
   return (
     <div className="min-h-screen bg-slate-50 pb-20">
-      <header className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 text-white p-4 sm:p-6 rounded-b-[2.5rem] shadow-lg">
+      {/* Topo com Identificação e Código de Compartilhamento */}
+      <header className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 text-white p-4 sm:p-6 rounded-b-[2rem] shadow-lg">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-2xl bg-white/20 border border-white/40 flex items-center justify-center text-2xl shadow-inner">
@@ -563,38 +518,25 @@ export default function PrismaApp() {
             </div>
             <div>
               <h1 className="font-black text-lg sm:text-xl leading-tight">{patient?.full_name}</h1>
-              <div className="flex items-center gap-2 mt-1">
-                <button
-                  onClick={copyPatientCode}
-                  className="bg-white/20 hover:bg-white/30 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider flex items-center gap-1 transition"
-                  title="Clique para copiar o código"
-                >
-                  {copied ? <Check className="w-3 h-3 text-emerald-300" /> : <Copy className="w-3 h-3" />}
-                  <span>Código: {patient?.code}</span>
-                </button>
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className="bg-white/25 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider">
+                  Código: {patient?.code}
+                </span>
                 <span className="text-[11px] text-indigo-100 hidden sm:inline">{patient?.grade_level}</span>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => { setPatient(null); setFlowState('CONNECT_PATIENT'); }}
-              className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold flex items-center gap-1 transition"
-              title="Trocar Aluno"
-            >
-              <Users className="w-4 h-4" />
-            </button>
-            <button 
-              onClick={handleSignOut}
-              className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold flex items-center gap-1 transition"
-              title="Sair"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
-          </div>
+          <button
+            onClick={() => { setPatient(null); setFlowState('CONNECT_PATIENT'); }}
+            className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold flex items-center gap-1 transition"
+          >
+            <Users className="w-4 h-4" />
+            <span className="hidden sm:inline">Trocar Aluno</span>
+          </button>
         </div>
 
+        {/* Barra de Navegação */}
         <div className="max-w-4xl mx-auto flex gap-2 mt-6">
           <button
             onClick={() => setActiveTab('grade')}
@@ -613,7 +555,7 @@ export default function PrismaApp() {
             }`}
           >
             <Sparkles className="w-4 h-4" />
-            Mural ABA
+            Mural Clínico
           </button>
 
           <button
@@ -628,13 +570,16 @@ export default function PrismaApp() {
         </div>
       </header>
 
+      {/* Conteúdo das Abas */}
       <main className="max-w-4xl mx-auto p-4 sm:p-6">
+        
+        {/* ABA 1: GRADE ESCOLAR */}
         {activeTab === 'grade' && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-lg font-black text-slate-900">Aulas do Dia</h2>
-                <p className="text-xs text-slate-500">Toque na matéria para registrar nível de ajuda e regulação</p>
+                <h2 className="text-lg font-black text-slate-800">Aulas do Dia</h2>
+                <p className="text-xs text-slate-500">Toque na matéria para registrar a participação</p>
               </div>
               <span className="text-xs font-bold bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full">
                 {dailyLogs.length} de {slots.length} registradas
@@ -655,7 +600,7 @@ export default function PrismaApp() {
                     }`}
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center text-2xl shadow-sm">
+                      <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center text-2xl">
                         {slot.icon}
                       </div>
                       <div>
@@ -666,7 +611,7 @@ export default function PrismaApp() {
                         <h3 className="font-bold text-slate-800 text-base">{slot.subject}</h3>
                         {log && (
                           <span className="text-[10px] font-bold px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-md">
-                            {log.prompt_level === 'independente' ? '🌟 Independente' : log.prompt_level} • {log.regulation_state}
+                            {log.completed_activity === 'total' ? 'Concluída' : 'Adaptada'} • {log.regulation_state}
                           </span>
                         )}
                       </div>
@@ -679,16 +624,17 @@ export default function PrismaApp() {
           </div>
         )}
 
+        {/* ABA 2: MURAL CLÍNICO (DIRETRIZES) */}
         {activeTab === 'dicas' && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-lg font-black text-slate-900">Diretrizes Clínicas ABA</h2>
-                <p className="text-xs text-slate-500">Manejo comportamental, regulação e reforço</p>
+                <h2 className="text-lg font-black text-slate-800">Diretrizes & Estratégias</h2>
+                <p className="text-xs text-slate-500">Manejo sensorial, pedagógico e comportamental</p>
               </div>
               <button
                 onClick={() => setShowTipModal(true)}
-                className="py-2 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center gap-2 shadow-sm transition"
+                className="py-2 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center gap-2 shadow-sm"
               >
                 <MessageSquarePlus className="w-4 h-4" />
                 Nova Diretriz
@@ -699,10 +645,10 @@ export default function PrismaApp() {
               {guidelines.map((tip) => (
                 <div key={tip.id} className="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-700">
+                    <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">
                       {tip.category}
                     </span>
-                    <span className="text-xs text-slate-400 font-medium">Por: {tip.author_name} ({tip.author_role})</span>
+                    <span className="text-xs text-slate-400">Por: {tip.author_name} ({tip.author_role})</span>
                   </div>
                   <h3 className="font-bold text-slate-800 text-base">{tip.title}</h3>
                   <p className="text-slate-600 text-sm leading-relaxed">{tip.description}</p>
@@ -712,11 +658,12 @@ export default function PrismaApp() {
           </div>
         )}
 
+        {/* ABA 3: RELATÓRIO DO DIA / PAIS */}
         {activeTab === 'relatorios' && (
           <div className="space-y-5">
             <div>
-              <h2 className="text-lg font-black text-slate-900">Resumo Diário da Rotina</h2>
-              <p className="text-xs text-slate-500">Dados consolidados de autonomia e regulação</p>
+              <h2 className="text-lg font-black text-slate-800">Resumo Diário da Rotina</h2>
+              <p className="text-xs text-slate-500">Acompanhamento de autonomia e autorregulação</p>
             </div>
 
             <div className="grid grid-cols-3 gap-3">
@@ -728,29 +675,30 @@ export default function PrismaApp() {
                 <div className="text-2xl font-black text-emerald-600">
                   {dailyLogs.filter(l => l.prompt_level === 'independente').length}
                 </div>
-                <div className="text-[11px] text-slate-500 font-medium mt-1">100% Autonomia</div>
+                <div className="text-[11px] text-slate-500 font-medium mt-1">Independentes</div>
               </div>
               <div className="p-4 rounded-2xl bg-white border border-amber-100 text-center shadow-sm">
                 <div className="text-2xl font-black text-amber-500">
                   {dailyLogs.filter(l => l.regulation_state === 'regulado').length}
                 </div>
-                <div className="text-[11px] text-slate-500 font-medium mt-1">Autorregulado</div>
+                <div className="text-[11px] text-slate-500 font-medium mt-1">Em Autorregulação</div>
               </div>
             </div>
 
+            {/* Linha do Tempo */}
             <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-3">
               <h3 className="font-bold text-slate-800 text-sm">Linha do Tempo Escolar</h3>
               {dailyLogs.length === 0 ? (
-                <p className="text-center py-6 text-xs text-slate-400">Nenhum registro lançado para o dia de hoje.</p>
+                <p className="text-center py-6 text-xs text-slate-400">Nenhum registro lançado para hoje ainda.</p>
               ) : (
                 dailyLogs.map((log, i) => (
-                  <div key={i} className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 text-xs space-y-1.5">
+                  <div key={i} className="p-3 rounded-xl bg-slate-50 border border-slate-100 text-xs space-y-1">
                     <div className="flex justify-between font-bold text-slate-800">
                       <span>{log.subject_name}</span>
-                      <span className="text-indigo-600 font-semibold">{log.prompt_level}</span>
+                      <span className="text-indigo-600">{log.prompt_level}</span>
                     </div>
-                    {log.observations && <p className="text-slate-600">💬 <b>Obs:</b> {log.observations}</p>}
-                    {log.sensory_notes && <p className="text-amber-700 bg-amber-50 p-2 rounded-lg">⚠️ <b>Atenção Sensorial:</b> {log.sensory_notes}</p>}
+                    {log.observations && <p className="text-slate-600">Obs: {log.observations}</p>}
+                    {log.sensory_notes && <p className="text-amber-700 bg-amber-50 p-1.5 rounded">⚠️ {log.sensory_notes}</p>}
                   </div>
                 ))
               )}
@@ -759,50 +707,50 @@ export default function PrismaApp() {
         )}
       </main>
 
-      {/* MODAL DO AT */}
+      {/* MODAL DO AT: REGISTRO DA AULA */}
       {selectedSlot && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white w-full max-w-lg rounded-3xl p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center border-b pb-3">
-              <h3 className="font-black text-slate-800 text-base">{selectedSlot.icon} {selectedSlot.subject}</h3>
-              <button onClick={() => setSelectedSlot(null)} className="text-slate-400 font-bold hover:text-slate-600">✕</button>
+            <div className="flex justify-between items-center border-b pb-2">
+              <h3 className="font-black text-slate-800">{selectedSlot.icon} {selectedSlot.subject}</h3>
+              <button onClick={() => setSelectedSlot(null)} className="text-slate-400 font-bold">✕</button>
             </div>
 
             <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">Nível de Suporte (Prompt Hierarchy):</label>
+              <label className="text-xs font-bold text-slate-700 block mb-1">Nível de Ajuda do AT (Prompt Hierarchy):</label>
               <select
                 value={logForm.prompt_level}
                 onChange={(e) => setLogForm({ ...logForm, prompt_level: e.target.value })}
                 className="w-full p-2.5 rounded-xl border border-slate-200 text-xs bg-slate-50 font-medium"
               >
                 <option value="independente">🌟 Independente (Sem dicas)</option>
-                <option value="dica_verbal">🗣️ Dica Verbal (Instrução/Lembrete)</option>
-                <option value="gestual_visual">👉 Pista Visual / Apontar</option>
-                <option value="ajuda_fisica_parcial">🤝 Ajuda Física Parcial (Guia de mão)</option>
+                <option value="dica_verbal">🗣️ Dica Verbal / Lembrete</option>
+                <option value="gestual_visual">👉 Pista Visual / Apontamento</option>
+                <option value="ajuda_fisica_parcial">🤝 Ajuda Física Parcial</option>
                 <option value="ajuda_fisica_total">🤲 Ajuda Física Total (Mão sobre mão)</option>
               </select>
             </div>
 
             <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">Estado de Regulação Sensorial/Emocional:</label>
+              <label className="text-xs font-bold text-slate-700 block mb-1">Estado Sensorial / Regulação:</label>
               <select
                 value={logForm.regulation_state}
                 onChange={(e) => setLogForm({ ...logForm, regulation_state: e.target.value })}
                 className="w-full p-2.5 rounded-xl border border-slate-200 text-xs bg-slate-50 font-medium"
               >
-                <option value="regulado">😊 Regulado / Atento / Engajado</option>
-                <option value="alerta">👀 Alerta / Hiperfocado</option>
-                <option value="agitado">⚡ Agitado / Inquieto</option>
+                <option value="regulado">😊 Regulado / Conectado</option>
+                <option value="alerta">👀 Alerta / Atento</option>
+                <option value="agitado">⚡ Agitado / Hiperativo</option>
                 <option value="hipoativo">😴 Hipoativo / Desatento</option>
-                <option value="sobrecarregado">⚠️ Sobrecarga Sensorial / Desregulado</option>
+                <option value="sobrecarregado">⚠️ Sobrecarga / Desregulado</option>
               </select>
             </div>
 
             <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">Gatilhos / Antecedentes Sensoriais:</label>
+              <label className="text-xs font-bold text-slate-700 block mb-1">Gatilhos Sensoriais (se houver):</label>
               <input
                 type="text"
-                placeholder="Ex: Barulho intenso no recreio, iluminação forte..."
+                placeholder="Ex: Barulho no corredor, lâmpada piscando..."
                 value={logForm.sensory_notes}
                 onChange={(e) => setLogForm({ ...logForm, sensory_notes: e.target.value })}
                 className="w-full p-2.5 rounded-xl border border-slate-200 text-xs bg-slate-50"
@@ -810,10 +758,10 @@ export default function PrismaApp() {
             </div>
 
             <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">Observações do AT (Manejo e Reforçadores):</label>
+              <label className="text-xs font-bold text-slate-700 block mb-1">Observações do AT:</label>
               <textarea
                 rows={2}
-                placeholder="Adaptações feitas, reforço positivo utilizado, interação com os colegas..."
+                placeholder="Adaptações feitas na atividade, interesse demonstrado..."
                 value={logForm.observations}
                 onChange={(e) => setLogForm({ ...logForm, observations: e.target.value })}
                 className="w-full p-2.5 rounded-xl border border-slate-200 text-xs bg-slate-50"
@@ -822,7 +770,7 @@ export default function PrismaApp() {
 
             <button
               onClick={handleSaveLog}
-              className="w-full py-3.5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md transition"
+              className="w-full py-3.5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md"
             >
               Salvar Registro da Aula
             </button>
@@ -830,20 +778,20 @@ export default function PrismaApp() {
         </div>
       )}
 
-      {/* MODAL TERAPEUTAS */}
+      {/* MODAL TERAPEUTAS: NOVA DIRETRIZ */}
       {showTipModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white w-full max-w-lg rounded-3xl p-6 shadow-2xl space-y-4">
-            <div className="flex justify-between items-center border-b pb-3">
-              <h3 className="font-black text-slate-800 text-base">Nova Estratégia Clínica ABA</h3>
-              <button onClick={() => setShowTipModal(false)} className="text-slate-400 font-bold hover:text-slate-600">✕</button>
+            <div className="flex justify-between items-center border-b pb-2">
+              <h3 className="font-black text-slate-800">Nova Estratégia Terapêutica</h3>
+              <button onClick={() => setShowTipModal(false)} className="text-slate-400 font-bold">✕</button>
             </div>
 
             <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">Título da Orientação:</label>
+              <label className="text-xs font-bold text-slate-700 block mb-1">Título da Estratégia:</label>
               <input
                 type="text"
-                placeholder="Ex: Manejo para transição entre sala e quadra"
+                placeholder="Ex: Acomodação para transição de aula"
                 value={newTip.title}
                 onChange={(e) => setNewTip({ ...newTip, title: e.target.value })}
                 className="w-full p-2.5 rounded-xl border border-slate-200 text-xs bg-slate-50"
@@ -857,19 +805,19 @@ export default function PrismaApp() {
                 onChange={(e) => setNewTip({ ...newTip, category: e.target.value })}
                 className="w-full p-2.5 rounded-xl border border-slate-200 text-xs bg-slate-50 font-medium"
               >
-                <option value="pedagogico">Pedagógico & Adaptação Curricular</option>
-                <option value="sensorial">Sensorial & Acomodações</option>
-                <option value="comportamental">Comportamental & Manejo ABA</option>
-                <option value="comunicacao">Comunicação / Fonoaudiologia</option>
-                <option value="social">Habilidades Sociais com Pares</option>
+                <option value="pedagogico">Pedagógico & Adaptação</option>
+                <option value="sensorial">Sensorial & Acomodação</option>
+                <option value="comportamental">Comportamental & Manejo</option>
+                <option value="comunicacao">Comunicação & Fono</option>
+                <option value="social">Interação Social</option>
               </select>
             </div>
 
             <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">Instrução Prática / Passo a Passo:</label>
+              <label className="text-xs font-bold text-slate-700 block mb-1">Passo a Passo / Instrução Prática:</label>
               <textarea
                 rows={4}
-                placeholder="Descreva exatamente como o AT e o professor devem agir..."
+                placeholder="Oriente como o AT e o professor devem intervir..."
                 value={newTip.description}
                 onChange={(e) => setNewTip({ ...newTip, description: e.target.value })}
                 className="w-full p-2.5 rounded-xl border border-slate-200 text-xs bg-slate-50"
@@ -878,7 +826,7 @@ export default function PrismaApp() {
 
             <button
               onClick={handleCreateTip}
-              className="w-full py-3.5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md transition"
+              className="w-full py-3.5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md"
             >
               Publicar Diretriz
             </button>

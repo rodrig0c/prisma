@@ -17,7 +17,6 @@ export default function PrismaApp() {
   const [patient, setPatient] = useState<any>(null);
   const [patientCodeInput, setPatientCodeInput] = useState('');
   const [copied, setCopied] = useState(false);
-  const [logoError, setLogoError] = useState(false);
   const [flowState, setFlowState] = useState<'SELECT_ROLE' | 'CONNECT_PATIENT' | 'CREATE_PATIENT' | 'APP'>('SELECT_ROLE');
 
   // Cadastro de Novo Paciente
@@ -99,6 +98,14 @@ export default function PrismaApp() {
     } else {
       setFlowState('SELECT_ROLE');
     }
+  };
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    setUser(null);
+    setProfile(null);
+    setPatient(null);
+    setFlowState('SELECT_ROLE');
   };
 
   const handleGoogleLogin = async () => {
@@ -294,46 +301,41 @@ export default function PrismaApp() {
       <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-          <p className="font-bold text-slate-500 text-xs tracking-wider uppercase">Carregando Prisma...</p>
+          <p className="font-bold text-slate-500 text-xs tracking-wider uppercase">Carregando...</p>
         </div>
       </div>
     );
   }
 
-  // 1. TELA DE LOGIN (100% BRANCA COM LOGO PERSONALIZADO)
+  // 1. TELA DE LOGIN (LOGO GRANDE, FUNDO BRANCO INTEGRADO, SEM NOME 'PRISMA' EM PRETO)
   if (!user) {
     return (
-      <main className="min-h-screen bg-white flex flex-col justify-center items-center p-6 text-center">
-        <div className="max-w-sm w-full space-y-6">
+      <main className="min-h-screen bg-white flex flex-col justify-center items-center px-6 py-10 text-center">
+        <div className="max-w-md w-full flex flex-col items-center">
           
-          {/* LOGO DO APP */}
-          <div className="flex justify-center">
-            {!logoError ? (
-              <img 
-                src="/logo.png" 
-                alt="Prisma Logo" 
-                onError={() => setLogoError(true)}
-                className="w-36 h-auto object-contain drop-shadow-sm"
-              />
-            ) : (
-              <div className="w-20 h-20 rounded-3xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-4xl shadow-sm">
-                ✨
-              </div>
-            )}
+          {/* LOGO AMPLIADO */}
+          <div className="w-full flex justify-center mb-6">
+            <img 
+              src="/logo.png" 
+              alt="Prisma" 
+              className="w-full max-w-[340px] sm:max-w-[420px] h-auto object-contain mix-blend-multiply drop-shadow-none"
+            />
           </div>
 
-          <div>
-            <p className="text-[11px] font-black uppercase tracking-widest text-indigo-600 mt-1">
-              Conexão Escolar • Terapia ABA • Família
+          {/* SUBTÍTULOS DIRETOS */}
+          <div className="space-y-2 mb-8">
+            <p className="text-xs font-black uppercase tracking-widest text-indigo-600">
+              CONEXÃO ESCOLAR • TERAPIA ABA • FAMÍLIA
             </p>
-            <p className="text-slate-500 text-xs mt-3 leading-relaxed">
-              Plataforma unificada para registro de mediação escolar, hierarquia de dicas, autorregulação e acompanhamento terapêutico.
+            <p className="text-slate-500 text-xs sm:text-sm leading-relaxed max-w-xs mx-auto">
+              Plataforma unificada para registro de mediação escolar, hierarquia de dicas e acompanhamento terapêutico.
             </p>
           </div>
 
+          {/* BOTÃO DE LOGIN GOOGLE */}
           <button
             onClick={handleGoogleLogin}
-            className="w-full py-4 px-6 bg-white hover:bg-slate-50 border-2 border-slate-200 hover:border-slate-300 text-slate-700 font-bold rounded-2xl shadow-sm hover:shadow transition flex items-center justify-center gap-3 active:scale-[0.98]"
+            className="w-full max-w-sm py-4 px-6 bg-white hover:bg-slate-50 border-2 border-slate-200 hover:border-slate-300 text-slate-700 font-bold rounded-2xl shadow-sm hover:shadow transition flex items-center justify-center gap-3 active:scale-[0.98]"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24">
               <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -348,13 +350,25 @@ export default function PrismaApp() {
     );
   }
 
-  // 2. SELEÇÃO DE PAPEL
+  // 2. SELEÇÃO DE PAPEL (COM BOTÃO SAIR)
   if (flowState === 'SELECT_ROLE') {
     return (
-      <main className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-white rounded-3xl shadow-sm border border-slate-100 p-6 sm:p-8">
-          <h2 className="text-2xl font-black text-slate-900 text-center">Como você atua?</h2>
-          <p className="text-slate-500 text-xs text-center mt-1 mb-6">Selecione seu papel na equipe do aluno:</p>
+      <main className="min-h-screen bg-white flex flex-col justify-between p-6">
+        <div className="w-full max-w-md mx-auto flex justify-end">
+          <button
+            onClick={handleSignOut}
+            className="text-xs font-bold text-slate-500 hover:text-red-600 flex items-center gap-1.5 py-1.5 px-3 rounded-lg hover:bg-slate-50 transition"
+          >
+            <LogOut className="w-4 h-4" />
+            <span>Sair da conta</span>
+          </button>
+        </div>
+
+        <div className="max-w-md w-full mx-auto my-auto space-y-6">
+          <div className="text-center">
+            <h2 className="text-2xl font-black text-slate-900">Como você atua?</h2>
+            <p className="text-slate-500 text-xs mt-1">Selecione seu papel na equipe multidisciplinar:</p>
+          </div>
 
           <div className="space-y-3">
             <button
@@ -402,40 +416,51 @@ export default function PrismaApp() {
             </button>
           </div>
         </div>
+
+        <div className="h-6"></div>
       </main>
     );
   }
 
-  // 3. CONECTAR VIA CÓDIGO (COM LAYOUT MOBILE OTIMIZADO)
+  // 3. CONECTAR VIA CÓDIGO
   if (flowState === 'CONNECT_PATIENT') {
     return (
-      <main className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-white rounded-3xl shadow-sm border border-slate-100 p-6 sm:p-8 space-y-6">
+      <main className="min-h-screen bg-white flex flex-col justify-between p-6">
+        <div className="w-full max-w-md mx-auto flex justify-end">
+          <button
+            onClick={handleSignOut}
+            className="text-xs font-bold text-slate-500 hover:text-red-600 flex items-center gap-1.5 py-1.5 px-3 rounded-lg hover:bg-slate-50 transition"
+          >
+            <LogOut className="w-4 h-4" />
+            <span>Sair da conta</span>
+          </button>
+        </div>
+
+        <div className="max-w-md w-full mx-auto my-auto space-y-6">
           <div className="text-center">
             <h2 className="text-2xl font-black text-slate-900">Acessar Aluno</h2>
             <p className="text-slate-500 text-xs mt-1">Conecte-se a uma criança existente ou cadastre um novo perfil.</p>
           </div>
 
-          {/* CARD DE INSERIR CÓDIGO COM BOTÃO INTEGRADO */}
-          <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+          <div className="p-6 rounded-3xl bg-slate-50 border border-slate-200 space-y-4">
             <div className="flex items-center gap-2 font-bold text-slate-800 text-sm">
               <KeyRound className="w-4 h-4 text-indigo-600" />
               Tenho um Código de Acesso
             </div>
             
-            <div className="space-y-2">
+            <div className="space-y-3">
               <input
                 type="text"
                 placeholder="EX: ROD-8492"
                 value={patientCodeInput}
                 onChange={(e) => setPatientCodeInput(e.target.value.toUpperCase())}
-                className="w-full p-3.5 rounded-xl border border-slate-300 bg-white font-mono font-black text-center text-base tracking-widest uppercase focus:outline-indigo-600 focus:border-indigo-600"
+                className="w-full p-4 rounded-2xl border border-slate-300 bg-white font-mono font-black text-center text-lg tracking-widest uppercase focus:outline-indigo-600 focus:border-indigo-600"
               />
               <button
                 onClick={handleConnectByCode}
-                className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white font-bold text-sm rounded-xl transition flex items-center justify-center gap-2 shadow-sm"
+                className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white font-bold text-sm rounded-2xl transition flex items-center justify-center gap-2 shadow-sm"
               >
-                <span>Conectar ao Aluno</span>
+                <span>Conectar</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
             </div>
@@ -448,12 +473,14 @@ export default function PrismaApp() {
 
           <button
             onClick={() => setFlowState('CREATE_PATIENT')}
-            className="w-full p-4 rounded-2xl border-2 border-dashed border-indigo-200 hover:border-indigo-400 hover:bg-indigo-50/50 text-indigo-600 font-bold text-xs flex items-center justify-center gap-2 transition"
+            className="w-full py-4 rounded-2xl border-2 border-dashed border-indigo-200 hover:border-indigo-400 hover:bg-indigo-50/50 text-indigo-600 font-bold text-xs flex items-center justify-center gap-2 transition"
           >
             <UserPlus className="w-4 h-4" />
             Cadastrar Novo Aluno na Plataforma
           </button>
         </div>
+
+        <div className="h-6"></div>
       </main>
     );
   }
@@ -461,11 +488,11 @@ export default function PrismaApp() {
   // 4. CADASTRO DE NOVO PACIENTE
   if (flowState === 'CREATE_PATIENT') {
     return (
-      <main className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-white rounded-3xl shadow-sm border border-slate-100 p-6 sm:p-8 space-y-4">
+      <main className="min-h-screen bg-white flex items-center justify-center p-6">
+        <div className="max-w-md w-full bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 space-y-4 shadow-sm">
           <div className="flex items-center justify-between border-b pb-3">
             <h2 className="text-xl font-black text-slate-900">Cadastrar Aluno</h2>
-            <button onClick={() => setFlowState('CONNECT_PATIENT')} className="text-xs font-bold text-slate-400 hover:text-slate-600">Voltar</button>
+            <button onClick={() => setFlowState('CONNECT_PATIENT')} className="text-xs font-bold text-slate-500 hover:text-slate-800">Voltar</button>
           </div>
 
           <div>
@@ -525,10 +552,9 @@ export default function PrismaApp() {
     );
   }
 
-  // 5. PAINEL PRINCIPAL (PRISMA APP)
+  // 5. PAINEL PRINCIPAL
   return (
     <div className="min-h-screen bg-slate-50 pb-20">
-      {/* HEADER PRINCIPAL */}
       <header className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 text-white p-4 sm:p-6 rounded-b-[2.5rem] shadow-lg">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -560,7 +586,7 @@ export default function PrismaApp() {
               <Users className="w-4 h-4" />
             </button>
             <button 
-              onClick={() => supabase.auth.signOut().then(() => { setUser(null); setProfile(null); })}
+              onClick={handleSignOut}
               className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold flex items-center gap-1 transition"
               title="Sair"
             >
@@ -569,7 +595,6 @@ export default function PrismaApp() {
           </div>
         </div>
 
-        {/* NAVEGAÇÃO DE ABAS */}
         <div className="max-w-4xl mx-auto flex gap-2 mt-6">
           <button
             onClick={() => setActiveTab('grade')}
@@ -603,10 +628,7 @@ export default function PrismaApp() {
         </div>
       </header>
 
-      {/* CORPO PRINCIPAL */}
       <main className="max-w-4xl mx-auto p-4 sm:p-6">
-        
-        {/* ABA 1: GRADE ESCOLAR */}
         {activeTab === 'grade' && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
@@ -657,7 +679,6 @@ export default function PrismaApp() {
           </div>
         )}
 
-        {/* ABA 2: MURAL ABA */}
         {activeTab === 'dicas' && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
@@ -691,7 +712,6 @@ export default function PrismaApp() {
           </div>
         )}
 
-        {/* ABA 3: PAINEL DOS PAIS */}
         {activeTab === 'relatorios' && (
           <div className="space-y-5">
             <div>
@@ -718,7 +738,6 @@ export default function PrismaApp() {
               </div>
             </div>
 
-            {/* Linha do Tempo */}
             <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-3">
               <h3 className="font-bold text-slate-800 text-sm">Linha do Tempo Escolar</h3>
               {dailyLogs.length === 0 ? (

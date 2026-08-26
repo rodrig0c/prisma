@@ -38,8 +38,8 @@ interface Patient {
 interface ScheduleSlot {
   id: string;
   patient_id: string;
-  day_of_week: number; // 1=Seg ... 5=Sex
-  start_time: string; // "08:00"
+  day_of_week: number;
+  start_time: string;
   end_time: string;
   subject: string;
   icon: string;
@@ -191,6 +191,10 @@ function weekdayLabel(offsetFromMondayIndex: number) {
   return WEEKDAYS.find((w) => w.value === offsetFromMondayIndex)?.label ?? '';
 }
 
+function formatDateBR(dateStr: string) {
+  return new Date(dateStr + 'T00:00:00').toLocaleDateString('pt-BR');
+}
+
 // =============================================================================
 // COMPONENTE PRINCIPAL
 // =============================================================================
@@ -202,7 +206,6 @@ export default function PrismaApp() {
   const [loading, setLoading] = useState(true);
   const [bootError, setBootError] = useState<string | null>(null);
 
-  // navegação interna por papel
   const [screen, setScreen] = useState<'dashboard' | 'schedule-editor' | 'guidelines' | 'weekly-report' | 'switch-patient' | 'add-patient' | 'patient-info'>('dashboard');
 
   const activePatient = useMemo(
@@ -210,9 +213,6 @@ export default function PrismaApp() {
     [patients, activePatientId]
   );
 
-  // -------------------------------------------------------------------------
-  // BOOTSTRAP: sessão -> perfil -> pacientes vinculados
-  // -------------------------------------------------------------------------
   const loadProfileAndPatients = useCallback(async (user: any) => {
     try {
       const { data: profileRow } = await supabase
@@ -290,9 +290,6 @@ export default function PrismaApp() {
     if (authUser) await loadProfileAndPatients(authUser);
   }, [authUser, loadProfileAndPatients]);
 
-  // -------------------------------------------------------------------------
-  // RENDER GATES
-  // -------------------------------------------------------------------------
   if (loading) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
@@ -319,7 +316,6 @@ export default function PrismaApp() {
     );
   }
 
-  // sem perfil OU sem crianças vinculadas -> onboarding
   if (!profile || patients.length === 0 || !activePatient) {
     return (
       <OnboardingFlow
@@ -332,9 +328,6 @@ export default function PrismaApp() {
     );
   }
 
-  // -------------------------------------------------------------------------
-  // APP PRINCIPAL (com header persistente)
-  // -------------------------------------------------------------------------
   return (
     <div className="min-h-screen bg-[#F4F7FB] pb-12">
       <AppHeader
@@ -352,7 +345,7 @@ export default function PrismaApp() {
         }}
       />
 
-      <main className="max-w-xl mx-auto p-4 sm:p-6 space-y-6 print:max-w-full">
+      <main className="max-w-xl mx-auto p-4 sm:p-6 space-y-6 print:max-w-full print:p-8 print:bg-white">
         {screen === 'switch-patient' && (
           <SwitchPatientScreen
             patients={patients}
@@ -388,11 +381,11 @@ export default function PrismaApp() {
         )}
 
         {screen === 'dashboard' && profile.role === 'pais' && (
-          <ParentsDashboard patient={activePatient} onOpenWeekly={() => setScreen('weekly-report')} onOpenGuidelines={() => setScreen('guidelines')} />
+          <ParentsDashboard patient={activePatient} onOpenWeekly={() => setScreen('weekly-report')} onOpenGuidelines={() => setScreen('guidelines')} profile={profile} />
         )}
 
         {screen === 'weekly-report' && profile.role === 'pais' && (
-          <WeeklyReport patient={activePatient} onClose={() => setScreen('dashboard')} />
+          <WeeklyReport patient={activePatient} onClose={() => setScreen('dashboard')} profile={profile} />
         )}
 
         {screen === 'dashboard' && profile.role === 'terapeuta_clinico' && (
@@ -400,15 +393,15 @@ export default function PrismaApp() {
         )}
 
         {screen === 'weekly-report' && profile.role === 'terapeuta_clinico' && (
-          <WeeklyReport patient={activePatient} onClose={() => setScreen('dashboard')} />
+          <WeeklyReport patient={activePatient} onClose={() => setScreen('dashboard')} profile={profile} />
         )}
 
         {screen === 'dashboard' && profile.role === 'professor' && (
-          <ParentsDashboard patient={activePatient} onOpenWeekly={() => setScreen('weekly-report')} onOpenGuidelines={() => setScreen('guidelines')} readOnlyLabel="Visão do(a) Professor(a)" />
+          <ParentsDashboard patient={activePatient} onOpenWeekly={() => setScreen('weekly-report')} onOpenGuidelines={() => setScreen('guidelines')} readOnlyLabel="Visão do(a) Professor(a)" profile={profile} />
         )}
 
         {screen === 'weekly-report' && profile.role === 'professor' && (
-          <WeeklyReport patient={activePatient} onClose={() => setScreen('dashboard')} />
+          <WeeklyReport patient={activePatient} onClose={() => setScreen('dashboard')} profile={profile} />
         )}
 
         {screen === 'guidelines' && (
@@ -765,7 +758,6 @@ function AddPatientPanel({
     );
   }
 
-  // mode === 'create'
   return (
     <div className="space-y-5">
       <button onClick={() => { setMode('choose'); setError(null); }} className="flex items-center gap-1 text-xs font-bold text-slate-500 hover:text-slate-700">
@@ -927,7 +919,7 @@ function PatientInfoScreen({
         {!editMode ? (
           <div className="space-y-3 pt-2 border-t border-slate-100">
             <InfoRow label="Escola" value={patient.school_name || '—'} />
-            <InfoRow label="Data de nascimento" value={patient.birth_date ? new Date(patient.birth_date + 'T00:00:00').toLocaleDateString('pt-BR') : '—'} />
+            <InfoRow label="Data de nascimento" value={patient.birth_date ? formatDateBR(patient.birth_date) : '—'} />
             <InfoRow label="Nível de suporte" value={patient.support_level || '—'} />
             <InfoRow label="Código de compartilhamento" value={patient.code} copyable />
           </div>
@@ -1232,8 +1224,8 @@ function ATDashboard({ patient, profile, onOpenSchedule }: { patient: Patient; p
   const [existingLog, setExistingLog] = useState<DailyLog | null>(null);
 
   const todayDow = (() => {
-    const d = new Date().getDay(); // 0=Dom
-    return d === 0 || d === 6 ? 1 : d; // fim de semana cai em segunda por padrão
+    const d = new Date().getDay();
+    return d === 0 || d === 6 ? 1 : d;
   })();
 
   const load = useCallback(async () => {
@@ -1564,7 +1556,7 @@ function ScheduleEditor({ patient, profile, onClose }: { patient: Patient; profi
   };
 
   const handleCardClick = (slot: ScheduleSlot) => {
-    if (activeDay !== todayDow) return; // só é possível registrar a aula do dia de hoje
+    if (activeDay !== todayDow) return;
     setLogSlot(slot);
   };
 
@@ -1718,16 +1710,18 @@ function ScheduleEditor({ patient, profile, onClose }: { patient: Patient; profi
 // VISÃO DOS PAIS: relatório do dia (escolhível) + atalhos
 // =============================================================================
 function ParentsDashboard({
-  patient, onOpenWeekly, onOpenGuidelines, readOnlyLabel
+  patient, onOpenWeekly, onOpenGuidelines, readOnlyLabel, profile
 }: {
   patient: Patient;
   onOpenWeekly: () => void;
   onOpenGuidelines: () => void;
   readOnlyLabel?: string;
+  profile: Profile;
 }) {
   const [date, setDate] = useState(todayISO());
   const [logs, setLogs] = useState<DailyLog[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -1738,9 +1732,43 @@ function ParentsDashboard({
 
   useEffect(() => { load(); }, [load]);
 
+  const handleExportPDF = () => {
+    window.print();
+  };
+
   return (
-    <div className="space-y-6">
-      <div className="bg-white rounded-[2rem] border border-slate-100 p-6 shadow-sm space-y-4 print:shadow-none">
+    <div className="space-y-6" id="report-content">
+      {/* Cabeçalho do relatório - visível apenas na impressão */}
+      <div className="hidden print:block pb-6 border-b border-slate-200">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <img src="/logo.png" alt="Prisma" className="h-12 w-auto object-contain" />
+            <div>
+              <h1 className="text-2xl font-black text-slate-900">Prisma</h1>
+              <p className="text-sm text-slate-600">Conexão Escolar • Terapia • Família</p>
+            </div>
+          </div>
+          <div className="text-right">
+            <p className="text-sm font-bold text-slate-800">{profile?.full_name}</p>
+            <p className="text-xs text-slate-500">{formatDateBR(date)}</p>
+          </div>
+        </div>
+        <div className="mt-4 pt-4 border-t border-slate-200">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center text-2xl">
+              {patient.photo_emoji || '👶'}
+            </div>
+            <div>
+              <p className="text-lg font-black text-slate-900">{patient.full_name}</p>
+              <p className="text-sm text-slate-600">
+                {patient.school_name || 'Escola não informada'} • {patient.grade_level || 'Série não informada'}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-[2rem] border border-slate-100 p-6 shadow-sm space-y-4 print:shadow-none print:border-0 print:p-0">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
             <h3 className="text-xl font-black text-slate-900 leading-tight">
@@ -1748,19 +1776,39 @@ function ParentsDashboard({
             </h3>
             <p className="text-xs text-slate-500 mt-1">Anotações feitas pelo acompanhante terapêutico</p>
           </div>
-          <button onClick={() => window.print()} className="p-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-2xl flex flex-col items-center justify-center text-slate-700 transition active:scale-95 print:hidden">
+          <button 
+            onClick={handleExportPDF} 
+            className="p-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-2xl flex flex-col items-center justify-center text-slate-700 transition active:scale-95 print:hidden"
+          >
             <FileText className="w-5 h-5 mb-0.5" />
             <span className="text-[10px] font-black uppercase tracking-wider">Exportar PDF</span>
           </button>
         </div>
 
-        <input
-          type="date"
-          value={date}
-          max={todayISO()}
-          onChange={(e) => setDate(e.target.value)}
-          className="w-full p-3 rounded-2xl border border-slate-200 text-sm font-bold text-slate-700 focus:outline-indigo-600 print:hidden"
-        />
+        {/* Date Picker melhorado */}
+        <div className="relative print:hidden">
+          <button
+            onClick={() => setShowDatePicker(!showDatePicker)}
+            className="w-full p-3 rounded-2xl border border-slate-200 text-sm font-bold text-slate-700 flex items-center justify-between hover:bg-slate-50 transition"
+          >
+            <span>{formatDateBR(date)}</span>
+            <CalendarDays className="w-4 h-4 text-slate-400" />
+          </button>
+          {showDatePicker && (
+            <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl border border-slate-200 shadow-xl p-4 z-10">
+              <input
+                type="date"
+                value={date}
+                max={todayISO()}
+                onChange={(e) => {
+                  setDate(e.target.value);
+                  setShowDatePicker(false);
+                }}
+                className="w-full p-3 rounded-2xl border border-slate-200 text-sm font-bold text-slate-700 focus:outline-indigo-600"
+              />
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3 print:hidden">
@@ -1794,8 +1842,8 @@ function DailyLogCard({ log }: { log: DailyLog }) {
   const triggers = log.sensory_notes ? log.sensory_notes.split(',').map((t) => t.trim()).filter(Boolean) : [];
 
   return (
-    <div className="bg-white rounded-[2rem] border border-slate-100 p-6 shadow-sm space-y-4 print:break-inside-avoid">
-      <div className="flex items-center justify-between border-b border-slate-100 pb-3 flex-wrap gap-2">
+    <div className="bg-white rounded-[2rem] border border-slate-100 p-6 shadow-sm space-y-4 print:break-inside-avoid print:shadow-none print:border-0 print:p-4 print:border-b print:border-slate-200">
+      <div className="flex items-center justify-between border-b border-slate-100 pb-3 flex-wrap gap-2 print:border-b-0 print:pb-0">
         <h4 className="text-base font-black text-slate-900">{log.subject_name}</h4>
         {reg && (
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-slate-200 bg-white text-xs font-bold text-slate-800 shadow-sm">
@@ -1805,7 +1853,7 @@ function DailyLogCard({ log }: { log: DailyLog }) {
       </div>
 
       {log.observations && (
-        <p className="text-slate-800 text-sm font-medium leading-relaxed italic bg-slate-50/70 p-3.5 rounded-2xl border border-slate-100">
+        <p className="text-slate-800 text-sm font-medium leading-relaxed italic bg-slate-50/70 p-3.5 rounded-2xl border border-slate-100 print:bg-white print:border-0 print:p-0 print:italic print:text-slate-700">
           "{log.observations}"
         </p>
       )}
@@ -1814,7 +1862,7 @@ function DailyLogCard({ log }: { log: DailyLog }) {
         <div className="flex items-center gap-1.5 flex-wrap">
           <span className="text-[10px] font-bold text-slate-400 uppercase">Gatilhos:</span>
           {triggers.map((t) => (
-            <span key={t} className="text-[11px] bg-amber-50 text-amber-800 font-semibold px-2 py-0.5 rounded-md">⚠️ {t}</span>
+            <span key={t} className="text-[11px] bg-amber-50 text-amber-800 font-semibold px-2 py-0.5 rounded-md print:bg-transparent print:border print:border-slate-300">⚠️ {t}</span>
           ))}
         </div>
       )}
@@ -1841,6 +1889,7 @@ function TherapistDashboard({
   const [logs, setLogs] = useState<DailyLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [showGuidelineForm, setShowGuidelineForm] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -1855,7 +1904,30 @@ function TherapistDashboard({
     <div className="space-y-6">
       <div className="bg-white rounded-[2rem] border border-slate-100 p-6 shadow-sm space-y-4">
         <h3 className="text-xl font-black text-slate-900">Painel clínico</h3>
-        <input type="date" value={date} max={todayISO()} onChange={(e) => setDate(e.target.value)} className="w-full p-3 rounded-2xl border border-slate-200 text-sm font-bold text-slate-700 focus:outline-indigo-600" />
+        
+        <div className="relative">
+          <button
+            onClick={() => setShowDatePicker(!showDatePicker)}
+            className="w-full p-3 rounded-2xl border border-slate-200 text-sm font-bold text-slate-700 flex items-center justify-between hover:bg-slate-50 transition"
+          >
+            <span>{formatDateBR(date)}</span>
+            <CalendarDays className="w-4 h-4 text-slate-400" />
+          </button>
+          {showDatePicker && (
+            <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl border border-slate-200 shadow-xl p-4 z-10">
+              <input
+                type="date"
+                value={date}
+                max={todayISO()}
+                onChange={(e) => {
+                  setDate(e.target.value);
+                  setShowDatePicker(false);
+                }}
+                className="w-full p-3 rounded-2xl border border-slate-200 text-sm font-bold text-slate-700 focus:outline-indigo-600"
+              />
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
@@ -2036,7 +2108,7 @@ function GuidelineFormModal({
 // =============================================================================
 // RELATÓRIO SEMANAL: gráfico simples (SVG) de engajamento/regulação
 // =============================================================================
-function WeeklyReport({ patient, onClose }: { patient: Patient; onClose: () => void }) {
+function WeeklyReport({ patient, onClose, profile }: { patient: Patient; onClose: () => void; profile: Profile }) {
   const [logs, setLogs] = useState<DailyLog[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -2096,12 +2168,46 @@ function WeeklyReport({ patient, onClose }: { patient: Patient; onClose: () => v
 
   const maxBar = 100;
 
+  const handleExportPDF = () => {
+    window.print();
+  };
+
   return (
-    <div className="space-y-6">
-      <div className="bg-white rounded-[2rem] border border-slate-100 p-6 shadow-sm space-y-1 print:shadow-none">
+    <div className="space-y-6" id="report-content">
+      {/* Cabeçalho do relatório - visível apenas na impressão */}
+      <div className="hidden print:block pb-6 border-b border-slate-200">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <img src="/logo.png" alt="Prisma" className="h-12 w-auto object-contain" />
+            <div>
+              <h1 className="text-2xl font-black text-slate-900">Prisma</h1>
+              <p className="text-sm text-slate-600">Conexão Escolar • Terapia • Família</p>
+            </div>
+          </div>
+          <div className="text-right">
+            <p className="text-sm font-bold text-slate-800">{profile?.full_name}</p>
+            <p className="text-xs text-slate-500">Relatório Semanal</p>
+          </div>
+        </div>
+        <div className="mt-4 pt-4 border-t border-slate-200">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center text-2xl">
+              {patient.photo_emoji || '👶'}
+            </div>
+            <div>
+              <p className="text-lg font-black text-slate-900">{patient.full_name}</p>
+              <p className="text-sm text-slate-600">
+                {patient.school_name || 'Escola não informada'} • {patient.grade_level || 'Série não informada'}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-[2rem] border border-slate-100 p-6 shadow-sm space-y-1 print:shadow-none print:border-0 print:p-0">
         <h3 className="text-xl font-black text-slate-900">Evolução da semana</h3>
         <p className="text-xs text-slate-500">
-          {new Date(start + 'T00:00:00').toLocaleDateString('pt-BR')} a {new Date(end + 'T00:00:00').toLocaleDateString('pt-BR')}
+          {formatDateBR(start)} a {formatDateBR(end)}
         </p>
       </div>
 
@@ -2109,7 +2215,7 @@ function WeeklyReport({ patient, onClose }: { patient: Patient; onClose: () => v
         <div className="py-10 flex justify-center"><Loader2 className="w-6 h-6 text-indigo-500 animate-spin" /></div>
       ) : (
         <>
-          <div className="bg-white rounded-[2rem] border border-slate-100 p-6 shadow-sm">
+          <div className="bg-white rounded-[2rem] border border-slate-100 p-6 shadow-sm print:shadow-none print:border-0 print:p-0">
             <p className="text-xs font-black uppercase tracking-wide text-slate-500 mb-4">Regulação sensorial média por dia</p>
             <div className="flex items-end justify-between gap-3 h-40">
               {dailyAverages.map((d) => {
@@ -2126,22 +2232,22 @@ function WeeklyReport({ patient, onClose }: { patient: Patient; onClose: () => v
           </div>
 
           <div className="grid grid-cols-3 gap-3">
-            <div className="bg-white rounded-2xl border border-slate-100 p-4 text-center shadow-sm">
+            <div className="bg-white rounded-2xl border border-slate-100 p-4 text-center shadow-sm print:border-0 print:shadow-none">
               <p className="text-2xl font-black text-slate-900">{totalLogs}</p>
               <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">Registros</p>
             </div>
-            <div className="bg-white rounded-2xl border border-slate-100 p-4 text-center shadow-sm">
+            <div className="bg-white rounded-2xl border border-slate-100 p-4 text-center shadow-sm print:border-0 print:shadow-none">
               <p className="text-2xl font-black text-emerald-600">{totalLogs ? Math.round((fullCompletion / totalLogs) * 100) : 0}%</p>
               <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">Realização total</p>
             </div>
-            <div className="bg-white rounded-2xl border border-slate-100 p-4 text-center shadow-sm">
+            <div className="bg-white rounded-2xl border border-slate-100 p-4 text-center shadow-sm print:border-0 print:shadow-none">
               <p className="text-2xl font-black text-rose-500">{overloadCount}</p>
               <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">Sobrecargas</p>
             </div>
           </div>
 
           {topTriggers.length > 0 && (
-            <div className="bg-white rounded-[2rem] border border-slate-100 p-6 shadow-sm space-y-3">
+            <div className="bg-white rounded-[2rem] border border-slate-100 p-6 shadow-sm space-y-3 print:shadow-none print:border-0 print:p-0">
               <p className="text-xs font-black uppercase tracking-wide text-slate-500">Gatilhos mais frequentes</p>
               {topTriggers.map(([trigger, count]) => (
                 <div key={trigger} className="flex items-center gap-3">
@@ -2155,7 +2261,10 @@ function WeeklyReport({ patient, onClose }: { patient: Patient; onClose: () => v
             </div>
           )}
 
-          <button onClick={() => window.print()} className="w-full py-3.5 rounded-2xl border border-slate-200 bg-white text-slate-700 font-bold text-xs flex items-center justify-center gap-2 hover:bg-slate-50 transition active:scale-[0.98] print:hidden">
+          <button 
+            onClick={handleExportPDF} 
+            className="w-full py-3.5 rounded-2xl border border-slate-200 bg-white text-slate-700 font-bold text-xs flex items-center justify-center gap-2 hover:bg-slate-50 transition active:scale-[0.98] print:hidden"
+          >
             <FileText className="w-4 h-4" /> Exportar relatório em PDF
           </button>
         </>

@@ -370,7 +370,7 @@ export default function PrismaApp() {
         )}
 
         {screen === 'schedule-editor' && profile.role === 'at_escola' && (
-          <ScheduleEditor patient={activePatient} onClose={() => setScreen('dashboard')} />
+          <ScheduleEditor patient={activePatient} profile={profile} onClose={() => setScreen('dashboard')} />
         )}
 
         {screen === 'dashboard' && profile.role === 'pais' && (
@@ -412,12 +412,15 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
   return (
     <main className="min-h-screen bg-white flex flex-col justify-center items-center px-6 py-10 text-center">
       <div className="max-w-md w-full flex flex-col items-center">
-        <div className="w-24 h-24 rounded-[2rem] bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center text-5xl shadow-lg mb-6">
-          🧩
+        <div className="w-full flex justify-center mb-6">
+          <img
+            src="/logo.png"
+            alt="Prisma"
+            className="w-full max-w-[340px] sm:max-w-[400px] h-auto object-contain mix-blend-multiply"
+          />
         </div>
-        <h1 className="text-3xl font-black text-slate-900 tracking-tight">Prisma</h1>
 
-        <div className="space-y-2 mb-8 mt-2">
+        <div className="space-y-2 mb-8">
           <p className="text-xs font-black uppercase tracking-widest text-indigo-600">
             CONEXÃO ESCOLAR • TERAPIA • FAMÍLIA
           </p>
@@ -750,22 +753,22 @@ function AddPatientPanel({
 
   // mode === 'create'
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <button onClick={() => { setMode('choose'); setError(null); }} className="flex items-center gap-1 text-xs font-bold text-slate-500 hover:text-slate-700">
         <ArrowLeft className="w-4 h-4" /> Voltar
       </button>
       <h2 className="text-lg font-black text-slate-900">Cadastrar criança</h2>
 
-      <div className="space-y-3">
+      <div className="space-y-4">
         <input
           value={form.full_name}
           onChange={(e) => setForm({ ...form, full_name: e.target.value })}
           placeholder="Nome completo *"
           className="w-full p-3.5 rounded-2xl border border-slate-200 text-sm focus:outline-indigo-600"
         />
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="text-[10px] font-black uppercase text-slate-500 block mb-1 ml-1">Data de nascimento</label>
+            <label className="text-[10px] font-black uppercase text-slate-500 block mb-1.5 ml-1">Data de nascimento</label>
             <input
               type="date"
               value={form.birth_date}
@@ -774,7 +777,7 @@ function AddPatientPanel({
             />
           </div>
           <div>
-            <label className="text-[10px] font-black uppercase text-slate-500 block mb-1 ml-1">Série / Ano</label>
+            <label className="text-[10px] font-black uppercase text-slate-500 block mb-1.5 ml-1">Série / Ano</label>
             <input
               value={form.grade_level}
               onChange={(e) => setForm({ ...form, grade_level: e.target.value })}
@@ -790,7 +793,7 @@ function AddPatientPanel({
           className="w-full p-3.5 rounded-2xl border border-slate-200 text-sm focus:outline-indigo-600"
         />
         <div>
-          <label className="text-[10px] font-black uppercase text-slate-500 block mb-1 ml-1">Nível de suporte (DSM-5)</label>
+          <label className="text-[10px] font-black uppercase text-slate-500 block mb-1.5 ml-1">Nível de suporte (DSM-5)</label>
           <select
             value={form.support_level}
             onChange={(e) => setForm({ ...form, support_level: e.target.value as any })}
@@ -1158,7 +1161,7 @@ function DailyLogModal({
 
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 z-50">
-      <div className="bg-white w-full max-w-lg rounded-t-[2.5rem] sm:rounded-[2.5rem] p-6 sm:p-8 space-y-5 max-h-[90vh] overflow-y-auto shadow-2xl">
+      <div className="bg-white w-full max-w-lg rounded-t-[2.5rem] sm:rounded-[2.5rem] p-6 sm:p-8 space-y-6 max-h-[90vh] overflow-y-auto shadow-2xl">
         <div className="flex justify-between items-start border-b border-slate-100 pb-4">
           <div>
             <span className="text-xs font-black tracking-wider text-[#4F46E5] uppercase">
@@ -1262,17 +1265,28 @@ function DailyLogModal({
 // =============================================================================
 // EDITOR DE GRADE (AT cadastra as disciplinas por dia da semana)
 // =============================================================================
-function ScheduleEditor({ patient, onClose }: { patient: Patient; onClose: () => void }) {
+function ScheduleEditor({ patient, profile, onClose }: { patient: Patient; profile: Profile; onClose: () => void }) {
   const [slots, setSlots] = useState<ScheduleSlot[]>([]);
+  const [logs, setLogs] = useState<DailyLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeDay, setActiveDay] = useState(1);
   const [editing, setEditing] = useState<Partial<ScheduleSlot> | null>(null);
+  const [logSlot, setLogSlot] = useState<ScheduleSlot | null>(null);
   const [saving, setSaving] = useState(false);
+
+  const todayDow = (() => {
+    const d = new Date().getDay();
+    return d === 0 || d === 6 ? 1 : d;
+  })();
 
   const load = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase.from('schedule_slots').select('*').eq('patient_id', patient.id).order('start_time');
-    setSlots(data || []);
+    const [{ data: slotRows }, { data: logRows }] = await Promise.all([
+      supabase.from('schedule_slots').select('*').eq('patient_id', patient.id).order('start_time'),
+      supabase.from('daily_logs').select('*').eq('patient_id', patient.id).eq('date', todayISO())
+    ]);
+    setSlots(slotRows || []);
+    setLogs(logRows || []);
     setLoading(false);
   }, [patient.id]);
 
@@ -1314,8 +1328,18 @@ function ScheduleEditor({ patient, onClose }: { patient: Patient; onClose: () =>
     load();
   };
 
+  const handleCardClick = (slot: ScheduleSlot) => {
+    if (activeDay !== todayDow) return; // só é possível registrar a aula do dia de hoje
+    setLogSlot(slot);
+  };
+
+  const handleLogSaved = (log: DailyLog) => {
+    setLogs((prev) => [log, ...prev.filter((l) => l.slot_id !== log.slot_id)]);
+    setLogSlot(null);
+  };
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <div className="flex items-center justify-between px-1">
         <h3 className="text-lg font-black text-slate-900">Grade de disciplinas</h3>
       </div>
@@ -1337,23 +1361,41 @@ function ScheduleEditor({ patient, onClose }: { patient: Patient; onClose: () =>
       {loading ? (
         <div className="py-10 flex justify-center"><Loader2 className="w-6 h-6 text-indigo-500 animate-spin" /></div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-3.5">
           {dayosSlots.length === 0 && (
-            <p className="text-xs text-slate-400 text-center py-6">Nenhuma disciplina neste dia ainda.</p>
+            <div className="bg-white rounded-[2rem] border border-slate-100 p-8 text-center">
+              <p className="text-sm font-bold text-slate-700">Nenhuma disciplina neste dia ainda.</p>
+              <p className="text-xs text-slate-500 mt-1">Toque em "Adicionar disciplina" abaixo para montar a rotina.</p>
+            </div>
           )}
           {dayosSlots.map((slot) => {
             const cm = COLOR_MAP[slot.color] || COLOR_MAP.indigo;
+            const isToday = activeDay === todayDow;
+            const hasLog = logs.find((l) => l.slot_id === slot.id);
             return (
-              <div key={slot.id} className="bg-white rounded-2xl border border-slate-100 p-4 flex items-center gap-3 shadow-sm">
-                <div className={`w-10 h-10 rounded-xl ${cm.bg} border ${cm.border} flex items-center justify-center text-lg ${cm.text} shrink-0`}>
+              <div
+                key={slot.id}
+                onClick={() => handleCardClick(slot)}
+                className={`bg-white rounded-2xl border border-slate-100 p-4 flex items-center gap-3 shadow-sm transition ${
+                  isToday ? 'cursor-pointer hover:border-indigo-200 hover:shadow active:scale-[0.99]' : ''
+                }`}
+              >
+                <div className={`w-11 h-11 rounded-xl ${cm.bg} border ${cm.border} flex items-center justify-center text-lg ${cm.text} shrink-0`}>
                   {slot.icon}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="font-bold text-sm text-slate-800 truncate">{slot.subject}</div>
-                  <div className="text-[11px] text-slate-400">{slot.start_time.slice(0, 5)} - {slot.end_time.slice(0, 5)}</div>
+                  <div className="text-[11px] text-slate-400 mt-0.5">
+                    {slot.start_time.slice(0, 5)} - {slot.end_time.slice(0, 5)}
+                    {isToday && (
+                      <span className={`ml-2 font-bold ${hasLog ? 'text-emerald-600' : 'text-amber-600'}`}>
+                        • {hasLog ? 'Registrado hoje' : 'Toque para registrar'}
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <button onClick={() => setEditing(slot)} className="p-2 text-slate-400 hover:text-indigo-600 transition"><Pencil className="w-4 h-4" /></button>
-                <button onClick={() => handleDelete(slot.id)} className="p-2 text-slate-400 hover:text-rose-600 transition"><Trash2 className="w-4 h-4" /></button>
+                <button onClick={(e) => { e.stopPropagation(); setEditing(slot); }} className="p-2 text-slate-400 hover:text-indigo-600 transition shrink-0"><Pencil className="w-4 h-4" /></button>
+                <button onClick={(e) => { e.stopPropagation(); handleDelete(slot.id); }} className="p-2 text-slate-400 hover:text-rose-600 transition shrink-0"><Trash2 className="w-4 h-4" /></button>
               </div>
             );
           })}
@@ -1369,7 +1411,7 @@ function ScheduleEditor({ patient, onClose }: { patient: Patient; onClose: () =>
 
       {editing && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 z-50">
-          <div className="bg-white w-full max-w-md rounded-t-[2.5rem] sm:rounded-[2.5rem] p-6 sm:p-8 space-y-4 max-h-[90vh] overflow-y-auto shadow-2xl">
+          <div className="bg-white w-full max-w-md rounded-t-[2.5rem] sm:rounded-[2.5rem] p-6 sm:p-8 space-y-6 max-h-[90vh] overflow-y-auto shadow-2xl">
             <div className="flex justify-between items-center">
               <h4 className="text-lg font-black text-slate-900">{editing.id ? 'Editar disciplina' : 'Nova disciplina'}</h4>
               <button onClick={() => setEditing(null)} className="w-8 h-8 bg-slate-100 hover:bg-slate-200 rounded-full flex items-center justify-center"><X className="w-4 h-4" /></button>
@@ -1383,8 +1425,8 @@ function ScheduleEditor({ patient, onClose }: { patient: Patient; onClose: () =>
             />
 
             <div>
-              <label className="text-[10px] font-black uppercase text-slate-500 block mb-1.5 ml-1">Ícone e cor</label>
-              <div className="flex flex-wrap gap-2">
+              <label className="text-[10px] font-black uppercase text-slate-500 block mb-2 ml-1">Ícone e cor</label>
+              <div className="flex flex-wrap gap-2.5">
                 {SUBJECT_PRESETS.map((p) => {
                   const cm = COLOR_MAP[p.color];
                   const active = editing.icon === p.icon && editing.color === p.color;
@@ -1401,13 +1443,13 @@ function ScheduleEditor({ patient, onClose }: { patient: Patient; onClose: () =>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-[10px] font-black uppercase text-slate-500 block mb-1 ml-1">Início</label>
+                <label className="text-[10px] font-black uppercase text-slate-500 block mb-1.5 ml-1">Início</label>
                 <input type="time" value={editing.start_time || ''} onChange={(e) => setEditing({ ...editing, start_time: e.target.value })} className="w-full p-3 rounded-2xl border border-slate-200 text-xs focus:outline-indigo-600" />
               </div>
               <div>
-                <label className="text-[10px] font-black uppercase text-slate-500 block mb-1 ml-1">Fim</label>
+                <label className="text-[10px] font-black uppercase text-slate-500 block mb-1.5 ml-1">Fim</label>
                 <input type="time" value={editing.end_time || ''} onChange={(e) => setEditing({ ...editing, end_time: e.target.value })} className="w-full p-3 rounded-2xl border border-slate-200 text-xs focus:outline-indigo-600" />
               </div>
             </div>
@@ -1421,6 +1463,17 @@ function ScheduleEditor({ patient, onClose }: { patient: Patient; onClose: () =>
             </button>
           </div>
         </div>
+      )}
+
+      {logSlot && (
+        <DailyLogModal
+          patient={patient}
+          profile={profile}
+          slot={logSlot}
+          existingLog={logs.find((l) => l.slot_id === logSlot.id) || null}
+          onClose={() => setLogSlot(null)}
+          onSaved={handleLogSaved}
+        />
       )}
     </div>
   );

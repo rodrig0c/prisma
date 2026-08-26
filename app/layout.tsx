@@ -11,7 +11,7 @@ export const metadata: Metadata = {
     statusBarStyle: 'default',
   },
   icons: {
-    apple: '/icon.png',
+    apple: '/icon.png', // Ícone do app na tela inicial do iOS
   },
 };
 
@@ -31,20 +31,20 @@ export default function RootLayout({
   return (
     <html lang="pt-BR">
       <head>
-        {/* Ícones para dispositivos Apple */}
-        <link rel="apple-touch-icon" href="/logo.png" sizes="180x180" />
-        <link rel="apple-touch-icon-precomposed" href="/logo.png" />
+        {/* Ícones para dispositivos Apple (tela inicial) */}
+        <link rel="apple-touch-icon" href="/icon.png" sizes="180x180" />
+        <link rel="apple-touch-icon-precomposed" href="/icon.png" />
         
         {/* Meta tags para PWA */}
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="Prisma" />
         
-        {/* Ícone para Android/Chrome */}
-        <link rel="icon" href="/logo.png" type="image/png" sizes="192x192" />
-        <link rel="icon" href="/logo.png" type="image/png" sizes="512x512" />
+        {/* Ícone para Android/Chrome (tela inicial) */}
+        <link rel="icon" href="/icon.png" type="image/png" sizes="192x192" />
+        <link rel="icon" href="/icon.png" type="image/png" sizes="512x512" />
         
-        {/* Meta tag para compartilhamento */}
+        {/* Meta tag para compartilhamento (usando logo.png) */}
         <meta property="og:title" content="Prisma - Conexão Terapêutica & Escolar ABA" />
         <meta property="og:description" content="Plataforma integrada de registro escolar, intervenção ABA e acompanhamento familiar." />
         <meta property="og:image" content="/logo.png" />

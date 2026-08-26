@@ -110,15 +110,15 @@ const SUBJECT_PRESETS: { icon: string; color: string; label: string }[] = [
   { icon: '🧩', color: 'indigo', label: 'Terapia ABA / TO' }
 ];
 
-const COLOR_MAP: Record<string, { bg: string; border: string; text: string }> = {
-  blue: { bg: 'bg-blue-100', border: 'border-blue-200', text: 'text-blue-600' },
-  emerald: { bg: 'bg-emerald-100', border: 'border-emerald-200', text: 'text-emerald-600' },
-  amber: { bg: 'bg-amber-100', border: 'border-amber-200', text: 'text-amber-600' },
-  orange: { bg: 'bg-orange-100', border: 'border-orange-200', text: 'text-orange-600' },
-  teal: { bg: 'bg-teal-100', border: 'border-teal-200', text: 'text-teal-600' },
-  purple: { bg: 'bg-purple-100', border: 'border-purple-200', text: 'text-purple-600' },
-  rose: { bg: 'bg-rose-100', border: 'border-rose-200', text: 'text-rose-600' },
-  indigo: { bg: 'bg-indigo-100', border: 'border-indigo-200', text: 'text-indigo-600' }
+const COLOR_MAP: Record<string, { bg: string; border: string; text: string; lightBg: string }> = {
+  blue: { bg: 'bg-blue-500', border: 'border-blue-200', text: 'text-blue-600', lightBg: 'bg-blue-50' },
+  emerald: { bg: 'bg-emerald-500', border: 'border-emerald-200', text: 'text-emerald-600', lightBg: 'bg-emerald-50' },
+  amber: { bg: 'bg-amber-500', border: 'border-amber-200', text: 'text-amber-600', lightBg: 'bg-amber-50' },
+  orange: { bg: 'bg-orange-500', border: 'border-orange-200', text: 'text-orange-600', lightBg: 'bg-orange-50' },
+  teal: { bg: 'bg-teal-500', border: 'border-teal-200', text: 'text-teal-600', lightBg: 'bg-teal-50' },
+  purple: { bg: 'bg-purple-500', border: 'border-purple-200', text: 'text-purple-600', lightBg: 'bg-purple-50' },
+  rose: { bg: 'bg-rose-500', border: 'border-rose-200', text: 'text-rose-600', lightBg: 'bg-rose-50' },
+  indigo: { bg: 'bg-indigo-500', border: 'border-indigo-200', text: 'text-indigo-600', lightBg: 'bg-indigo-50' }
 };
 
 const COMPLETED_LABELS: Record<CompletedActivity, string> = {
@@ -454,7 +454,7 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
 }
 
 // =============================================================================
-// ONBOARDING: criar perfil (papel) + vincular/cadastrar criança
+// ONBOARDING
 // =============================================================================
 function OnboardingFlow({
   authUser, profile, onProfileCreated, onSignOut, onPatientLinked
@@ -575,7 +575,7 @@ function OnboardingFlow({
 }
 
 // =============================================================================
-// PAINEL: cadastrar nova criança OU entrar com código de uma já existente
+// PAINEL: cadastrar nova criança
 // =============================================================================
 function AddPatientPanel({
   profile, onDone, onCancel, embedded
@@ -824,10 +824,7 @@ function AddPatientPanel({
 }
 
 // =============================================================================
-// SELETOR DE CRIANÇA (trocar aluno)
-// =============================================================================
-// =============================================================================
-// PERFIL DA CRIANÇA: dados básicos editáveis + equipe vinculada (pais/AT/terapeuta/professor)
+// PERFIL DA CRIANÇA
 // =============================================================================
 interface LinkedMember {
   role_in_patient: string;
@@ -1068,7 +1065,7 @@ function SwitchPatientScreen({
 }
 
 // =============================================================================
-// AVATAR DA CRIANÇA (com upload de foto)
+// AVATAR DA CRIANÇA
 // =============================================================================
 function ChildAvatar({
   patient, size = 44, editable = false, onUploaded
@@ -1119,7 +1116,7 @@ function ChildAvatar({
 }
 
 // =============================================================================
-// CABEÇALHO PERSISTENTE (nome do usuário, papel, criança, ações)
+// CABEÇALHO PERSISTENTE
 // =============================================================================
 function AppHeader({
   profile, patient, canGoBack, onBack, onSwitchPatient, onOpenPatientInfo, onSignOut, onRoleChange
@@ -1138,8 +1135,19 @@ function AppHeader({
   const [showRolePicker, setShowRolePicker] = useState(false);
 
   return (
-    <header className="bg-white border-b border-slate-100 sticky top-0 z-10 shadow-sm print:hidden">
-      <div className="max-w-xl mx-auto p-4 space-y-3">
+    <header className="bg-white border-b border-slate-100 sticky top-0 z-10 shadow-sm print:hidden relative overflow-hidden">
+      {/* Fundo com ícone */}
+      <div 
+        className="absolute inset-0 opacity-[0.03] pointer-events-none"
+        style={{
+          backgroundImage: `url('/icon.png')`,
+          backgroundSize: '200px 200px',
+          backgroundRepeat: 'repeat',
+          backgroundPosition: 'center'
+        }}
+      />
+      
+      <div className="max-w-xl mx-auto p-4 space-y-3 relative z-10">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3 min-w-0">
             {canGoBack && (
@@ -1214,7 +1222,7 @@ function AppHeader({
 }
 
 // =============================================================================
-// VISÃO DO AT: ROTINA DO DIA + REGISTRO DE AULAS
+// VISÃO DO AT
 // =============================================================================
 function ATDashboard({ patient, profile, onOpenSchedule }: { patient: Patient; profile: Profile; onOpenSchedule: () => void }) {
   const [slots, setSlots] = useState<ScheduleSlot[]>([]);
@@ -1285,34 +1293,34 @@ function ATDashboard({ patient, profile, onOpenSchedule }: { patient: Patient; p
         const hasLog = logs.find((l) => l.slot_id === slot.id);
         const cm = COLOR_MAP[slot.color] || COLOR_MAP.indigo;
         return (
-          <div key={slot.id} className="bg-white rounded-[2rem] border border-slate-100 p-5 sm:p-6 shadow-sm space-y-4">
+          <div key={slot.id} className={`${cm.lightBg} rounded-[2rem] border ${cm.border} p-5 sm:p-6 shadow-sm space-y-4`}>
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-400 tracking-wider">
+              <span className="text-xs font-bold text-slate-500 tracking-wider">
                 {slot.start_time.slice(0, 5)} - {slot.end_time.slice(0, 5)}
               </span>
               {hasLog ? (
-                <span className="bg-[#D1FAE5] text-[#065F46] text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1">
+                <span className="bg-emerald-100 text-emerald-700 text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1">
                   <Check className="w-3.5 h-3.5" /> Concluído
                 </span>
               ) : (
-                <span className="bg-[#FEF3C7] text-[#92400E] text-xs font-bold px-3 py-1 rounded-full">Pendente</span>
+                <span className="bg-amber-100 text-amber-700 text-xs font-bold px-3 py-1 rounded-full">Pendente</span>
               )}
             </div>
 
             <div className="flex items-center gap-3.5">
-              <div className={`w-12 h-12 rounded-2xl ${cm.bg} border ${cm.border} flex items-center justify-center text-xl ${cm.text}`}>
+              <div className={`w-12 h-12 rounded-2xl ${cm.bg} text-white flex items-center justify-center text-xl shadow-sm`}>
                 {slot.icon}
               </div>
               <div>
                 <h4 className="text-lg font-black text-slate-900 leading-tight">{slot.subject}</h4>
-                <p className="text-xs text-slate-400 mt-0.5">Toque para abrir o formulário rápido</p>
+                <p className="text-xs text-slate-500 mt-0.5">Toque para abrir o formulário rápido</p>
               </div>
             </div>
 
             <button
               onClick={() => openSlot(slot)}
               className={`w-full py-3.5 rounded-2xl font-bold text-sm text-center transition active:scale-[0.98] shadow-sm ${
-                hasLog ? 'bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200' : 'bg-[#4F46E5] hover:bg-[#4338CA] text-white shadow-indigo-200'
+                hasLog ? 'bg-white hover:bg-slate-50 text-indigo-700 border-2 border-indigo-200' : 'bg-[#4F46E5] hover:bg-[#4338CA] text-white shadow-indigo-200'
               }`}
             >
               {hasLog ? 'Ver / Editar registro' : 'Registrar acompanhamento'}
@@ -1336,7 +1344,7 @@ function ATDashboard({ patient, profile, onOpenSchedule }: { patient: Patient; p
 }
 
 // =============================================================================
-// MODAL DE REGISTRO DE AULA (usado pelo AT)
+// MODAL DE REGISTRO DE AULA
 // =============================================================================
 function DailyLogModal({
   patient, profile, slot, existingLog, onClose, onSaved
@@ -1490,7 +1498,7 @@ function DailyLogModal({
 }
 
 // =============================================================================
-// EDITOR DE GRADE (AT cadastra as disciplinas por dia da semana)
+// EDITOR DE GRADE
 // =============================================================================
 function ScheduleEditor({ patient, profile, onClose }: { patient: Patient; profile: Profile; onClose: () => void }) {
   const [slots, setSlots] = useState<ScheduleSlot[]>([]);
@@ -1603,16 +1611,16 @@ function ScheduleEditor({ patient, profile, onClose }: { patient: Patient; profi
               <div
                 key={slot.id}
                 onClick={() => handleCardClick(slot)}
-                className={`bg-white rounded-2xl border border-slate-100 p-4 flex items-center gap-3 shadow-sm transition ${
-                  isToday ? 'cursor-pointer hover:border-indigo-200 hover:shadow active:scale-[0.99]' : ''
+                className={`${cm.lightBg} rounded-2xl border ${cm.border} p-4 flex items-center gap-3 shadow-sm transition ${
+                  isToday ? 'cursor-pointer hover:shadow-md active:scale-[0.99]' : ''
                 }`}
               >
-                <div className={`w-11 h-11 rounded-xl ${cm.bg} border ${cm.border} flex items-center justify-center text-lg ${cm.text} shrink-0`}>
+                <div className={`w-11 h-11 rounded-xl ${cm.bg} text-white flex items-center justify-center text-lg shadow-sm shrink-0`}>
                   {slot.icon}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="font-bold text-sm text-slate-800 truncate">{slot.subject}</div>
-                  <div className="text-[11px] text-slate-400 mt-0.5">
+                  <div className="text-[11px] text-slate-500 mt-0.5">
                     {slot.start_time.slice(0, 5)} - {slot.end_time.slice(0, 5)}
                     {isToday && (
                       <span className={`ml-2 font-bold ${hasLog ? 'text-emerald-600' : 'text-amber-600'}`}>
@@ -1661,7 +1669,7 @@ function ScheduleEditor({ patient, profile, onClose }: { patient: Patient; profi
                     <button
                       key={p.label}
                       onClick={() => setEditing({ ...editing, icon: p.icon, color: p.color, subject: editing.subject || p.label })}
-                      className={`w-11 h-11 rounded-xl ${cm.bg} border-2 ${active ? cm.border.replace('200', '500') : 'border-transparent'} flex items-center justify-center text-lg`}
+                      className={`w-11 h-11 rounded-xl ${cm.bg} border-2 ${active ? 'border-white ring-2 ring-indigo-500' : 'border-transparent'} text-white flex items-center justify-center text-lg shadow-sm`}
                     >
                       {p.icon}
                     </button>
@@ -1707,7 +1715,7 @@ function ScheduleEditor({ patient, profile, onClose }: { patient: Patient; profi
 }
 
 // =============================================================================
-// VISÃO DOS PAIS: relatório do dia (escolhível) + atalhos
+// VISÃO DOS PAIS
 // =============================================================================
 function ParentsDashboard({
   patient, onOpenWeekly, onOpenGuidelines, readOnlyLabel, profile
@@ -1737,30 +1745,31 @@ function ParentsDashboard({
   };
 
   return (
-    <div className="space-y-6" id="report-content">
+    <div className="space-y-6">
       {/* Cabeçalho do relatório - visível apenas na impressão */}
       <div className="hidden print:block pb-6 border-b border-slate-200">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <img src="/logo.png" alt="Prisma" className="h-12 w-auto object-contain" />
+          <div className="flex items-center gap-3">
+            <img src="/logo.png" alt="Prisma" className="h-10 w-auto object-contain" />
+            <div className="h-8 w-px bg-slate-300" />
             <div>
-              <h1 className="text-2xl font-black text-slate-900">Prisma</h1>
-              <p className="text-sm text-slate-600">Conexão Escolar • Terapia • Família</p>
+              <p className="text-sm font-bold text-slate-900">Relatório de Acompanhamento</p>
+              <p className="text-xs text-slate-500">{formatDateBR(date)}</p>
             </div>
           </div>
           <div className="text-right">
-            <p className="text-sm font-bold text-slate-800">{profile?.full_name}</p>
-            <p className="text-xs text-slate-500">{formatDateBR(date)}</p>
+            <p className="text-xs font-semibold text-slate-700">{profile?.full_name}</p>
+            <p className="text-[10px] text-slate-400">Emitido em {new Date().toLocaleDateString('pt-BR')}</p>
           </div>
         </div>
         <div className="mt-4 pt-4 border-t border-slate-200">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center text-2xl">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-lg">
               {patient.photo_emoji || '👶'}
             </div>
             <div>
-              <p className="text-lg font-black text-slate-900">{patient.full_name}</p>
-              <p className="text-sm text-slate-600">
+              <p className="font-bold text-slate-900">{patient.full_name}</p>
+              <p className="text-xs text-slate-500">
                 {patient.school_name || 'Escola não informada'} • {patient.grade_level || 'Série não informada'}
               </p>
             </div>
@@ -1769,45 +1778,47 @@ function ParentsDashboard({
       </div>
 
       <div className="bg-white rounded-[2rem] border border-slate-100 p-6 shadow-sm space-y-4 print:shadow-none print:border-0 print:p-0">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex-1 min-w-0">
             <h3 className="text-xl font-black text-slate-900 leading-tight">
               {readOnlyLabel || 'Relatório do dia'}
             </h3>
             <p className="text-xs text-slate-500 mt-1">Anotações feitas pelo acompanhante terapêutico</p>
           </div>
-          <button 
-            onClick={handleExportPDF} 
-            className="p-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-2xl flex flex-col items-center justify-center text-slate-700 transition active:scale-95 print:hidden"
-          >
-            <FileText className="w-5 h-5 mb-0.5" />
-            <span className="text-[10px] font-black uppercase tracking-wider">Exportar PDF</span>
-          </button>
-        </div>
-
-        {/* Date Picker melhorado */}
-        <div className="relative print:hidden">
-          <button
-            onClick={() => setShowDatePicker(!showDatePicker)}
-            className="w-full p-3 rounded-2xl border border-slate-200 text-sm font-bold text-slate-700 flex items-center justify-between hover:bg-slate-50 transition"
-          >
-            <span>{formatDateBR(date)}</span>
-            <CalendarDays className="w-4 h-4 text-slate-400" />
-          </button>
-          {showDatePicker && (
-            <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl border border-slate-200 shadow-xl p-4 z-10">
-              <input
-                type="date"
-                value={date}
-                max={todayISO()}
-                onChange={(e) => {
-                  setDate(e.target.value);
-                  setShowDatePicker(false);
-                }}
-                className="w-full p-3 rounded-2xl border border-slate-200 text-sm font-bold text-slate-700 focus:outline-indigo-600"
-              />
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Date Picker compacto */}
+            <div className="relative">
+              <button
+                onClick={() => setShowDatePicker(!showDatePicker)}
+                className="p-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-slate-700 transition flex items-center gap-1.5 text-xs font-bold"
+              >
+                <CalendarDays className="w-4 h-4" />
+                <span className="hidden sm:inline">{formatDateBR(date)}</span>
+              </button>
+              {showDatePicker && (
+                <div className="absolute right-0 top-full mt-2 bg-white rounded-2xl border border-slate-200 shadow-xl p-3 z-10 min-w-[200px]">
+                  <input
+                    type="date"
+                    value={date}
+                    max={todayISO()}
+                    onChange={(e) => {
+                      setDate(e.target.value);
+                      setShowDatePicker(false);
+                    }}
+                    className="w-full p-2 rounded-xl border border-slate-200 text-sm font-bold text-slate-700 focus:outline-indigo-600"
+                  />
+                </div>
+              )}
             </div>
-          )}
+            
+            <button 
+              onClick={handleExportPDF} 
+              className="p-2.5 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl flex items-center gap-1.5 text-indigo-700 transition active:scale-95 print:hidden text-xs font-bold"
+            >
+              <FileText className="w-4 h-4" />
+              <span className="hidden sm:inline">PDF</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1876,7 +1887,7 @@ function DailyLogCard({ log }: { log: DailyLog }) {
 }
 
 // =============================================================================
-// VISÃO DO TERAPEUTA: acompanha logs + gerencia dicas
+// VISÃO DO TERAPEUTA
 // =============================================================================
 function TherapistDashboard({
   patient, profile, onOpenWeekly
@@ -1959,7 +1970,7 @@ function TherapistDashboard({
 }
 
 // =============================================================================
-// TELA DE DIRETRIZES / DICAS DOS TERAPEUTAS
+// TELA DE DIRETRIZES
 // =============================================================================
 function GuidelinesScreen({ patient, profile, onClose }: { patient: Patient; profile: Profile; onClose: () => void }) {
   const [guidelines, setGuidelines] = useState<Guideline[]>([]);
@@ -2106,7 +2117,7 @@ function GuidelineFormModal({
 }
 
 // =============================================================================
-// RELATÓRIO SEMANAL: gráfico simples (SVG) de engajamento/regulação
+// RELATÓRIO SEMANAL
 // =============================================================================
 function WeeklyReport({ patient, onClose, profile }: { patient: Patient; onClose: () => void; profile: Profile }) {
   const [logs, setLogs] = useState<DailyLog[]>([]);
@@ -2173,30 +2184,31 @@ function WeeklyReport({ patient, onClose, profile }: { patient: Patient; onClose
   };
 
   return (
-    <div className="space-y-6" id="report-content">
+    <div className="space-y-6">
       {/* Cabeçalho do relatório - visível apenas na impressão */}
       <div className="hidden print:block pb-6 border-b border-slate-200">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <img src="/logo.png" alt="Prisma" className="h-12 w-auto object-contain" />
+          <div className="flex items-center gap-3">
+            <img src="/logo.png" alt="Prisma" className="h-10 w-auto object-contain" />
+            <div className="h-8 w-px bg-slate-300" />
             <div>
-              <h1 className="text-2xl font-black text-slate-900">Prisma</h1>
-              <p className="text-sm text-slate-600">Conexão Escolar • Terapia • Família</p>
+              <p className="text-sm font-bold text-slate-900">Relatório Semanal</p>
+              <p className="text-xs text-slate-500">{formatDateBR(start)} a {formatDateBR(end)}</p>
             </div>
           </div>
           <div className="text-right">
-            <p className="text-sm font-bold text-slate-800">{profile?.full_name}</p>
-            <p className="text-xs text-slate-500">Relatório Semanal</p>
+            <p className="text-xs font-semibold text-slate-700">{profile?.full_name}</p>
+            <p className="text-[10px] text-slate-400">Emitido em {new Date().toLocaleDateString('pt-BR')}</p>
           </div>
         </div>
         <div className="mt-4 pt-4 border-t border-slate-200">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center text-2xl">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-lg">
               {patient.photo_emoji || '👶'}
             </div>
             <div>
-              <p className="text-lg font-black text-slate-900">{patient.full_name}</p>
-              <p className="text-sm text-slate-600">
+              <p className="font-bold text-slate-900">{patient.full_name}</p>
+              <p className="text-xs text-slate-500">
                 {patient.school_name || 'Escola não informada'} • {patient.grade_level || 'Série não informada'}
               </p>
             </div>

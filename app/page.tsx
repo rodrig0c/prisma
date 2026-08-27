@@ -1141,7 +1141,7 @@ function AppHeader({
         className="absolute inset-0 opacity-[0.20] pointer-events-none"
         style={{
           backgroundImage: `url('/header.png')`,
-          backgroundSize: '150px 200px',
+          backgroundSize: '200px 160px',
           backgroundRepeat: 'repeat',
           backgroundPosition: 'center'
         }}

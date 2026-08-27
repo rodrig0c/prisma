@@ -1138,10 +1138,10 @@ function AppHeader({
     <header className="bg-white border-b border-slate-100 sticky top-0 z-40 shadow-sm print:hidden relative">
       {/* Fundo com ícone - sem overflow-hidden */}
       <div 
-        className="absolute inset-0 opacity-[0.30] pointer-events-none"
+        className="absolute inset-0 opacity-[0.20] pointer-events-none"
         style={{
           backgroundImage: `url('/header.png')`,
-          backgroundSize: '200px 200px',
+          backgroundSize: '150px 200px',
           backgroundRepeat: 'repeat',
           backgroundPosition: 'center'
         }}

@@ -1116,7 +1116,7 @@ function ChildAvatar({
 }
 
 // =============================================================================
-// CABEÇALHO PERSISTENTE
+// CABEÇALHO PERSISTENTE - CORRIGIDO
 // =============================================================================
 function AppHeader({
   profile, patient, canGoBack, onBack, onSwitchPatient, onOpenPatientInfo, onSignOut, onRoleChange
@@ -1135,8 +1135,8 @@ function AppHeader({
   const [showRolePicker, setShowRolePicker] = useState(false);
 
   return (
-    <header className="bg-white border-b border-slate-100 sticky top-0 z-10 shadow-sm print:hidden relative overflow-hidden">
-      {/* Fundo com ícone */}
+    <header className="bg-white border-b border-slate-100 sticky top-0 z-40 shadow-sm print:hidden relative">
+      {/* Fundo com ícone - sem overflow-hidden */}
       <div 
         className="absolute inset-0 opacity-[0.03] pointer-events-none"
         style={{
@@ -1196,7 +1196,7 @@ function AppHeader({
           </button>
 
           {showRolePicker && (
-            <div className="absolute right-0 top-full mt-2 bg-white rounded-2xl border border-slate-200 shadow-xl p-2 z-20 w-64">
+            <div className="absolute right-0 top-full mt-2 bg-white rounded-2xl border border-slate-200 shadow-xl p-2 z-50 w-64">
               <p className="text-[10px] font-black uppercase text-slate-400 px-2 py-1">Ver como (modo de teste)</p>
               {(Object.keys(ROLE_LABELS) as ProfileRole[]).map((r) => {
                 const meta = ROLE_LABELS[r];
@@ -1741,7 +1741,6 @@ function ParentsDashboard({
   useEffect(() => { load(); }, [load]);
 
   const handleExportPDF = () => {
-    // Força o download do PDF em vez de abrir a impressora
     window.print();
   };
 

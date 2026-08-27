@@ -1140,7 +1140,7 @@ function AppHeader({
       <div 
         className="absolute inset-0 opacity-[0.03] pointer-events-none"
         style={{
-          backgroundImage: `url('/icon.png')`,
+          backgroundImage: `url('/header.png')`,
           backgroundSize: '200px 200px',
           backgroundRepeat: 'repeat',
           backgroundPosition: 'center'
@@ -1741,6 +1741,7 @@ function ParentsDashboard({
   useEffect(() => { load(); }, [load]);
 
   const handleExportPDF = () => {
+    // Força o download do PDF em vez de abrir a impressora
     window.print();
   };
 
@@ -1790,13 +1791,13 @@ function ParentsDashboard({
             <div className="relative">
               <button
                 onClick={() => setShowDatePicker(!showDatePicker)}
-                className="p-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-slate-700 transition flex items-center gap-1.5 text-xs font-bold"
+                className="p-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-slate-700 transition flex items-center gap-1.5 text-xs font-bold whitespace-nowrap"
               >
                 <CalendarDays className="w-4 h-4" />
                 <span className="hidden sm:inline">{formatDateBR(date)}</span>
               </button>
               {showDatePicker && (
-                <div className="absolute right-0 top-full mt-2 bg-white rounded-2xl border border-slate-200 shadow-xl p-3 z-10 min-w-[200px]">
+                <div className="absolute right-0 top-full mt-2 bg-white rounded-2xl border border-slate-200 shadow-xl p-3 z-20 min-w-[220px]">
                   <input
                     type="date"
                     value={date}
@@ -1813,7 +1814,7 @@ function ParentsDashboard({
             
             <button 
               onClick={handleExportPDF} 
-              className="p-2.5 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl flex items-center gap-1.5 text-indigo-700 transition active:scale-95 print:hidden text-xs font-bold"
+              className="p-2.5 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl flex items-center gap-1.5 text-indigo-700 transition active:scale-95 print:hidden text-xs font-bold whitespace-nowrap"
             >
               <FileText className="w-4 h-4" />
               <span className="hidden sm:inline">PDF</span>
